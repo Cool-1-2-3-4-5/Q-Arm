@@ -1,0 +1,68 @@
+[0.050s] Invoking command in '/workspace/qarm_ws/build/qarm_description': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /workspace/qarm_ws/src/qarm_description -DCMAKE_INSTALL_PREFIX=/workspace/qarm_ws/install/qarm_description
+[0.341s] -- The C compiler identification is GNU 11.4.0
+[0.470s] -- The CXX compiler identification is GNU 11.4.0
+[0.490s] -- Detecting C compiler ABI info
+[0.728s] -- Detecting C compiler ABI info - done
+[0.749s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.750s] -- Detecting C compile features
+[0.751s] -- Detecting C compile features - done
+[0.760s] -- Detecting CXX compiler ABI info
+[0.967s] -- Detecting CXX compiler ABI info - done
+[0.980s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.980s] -- Detecting CXX compile features
+[0.981s] -- Detecting CXX compile features - done
+[0.991s] -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+[1.371s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[1.626s] -- Found urdf: 2.6.1 (/opt/ros/humble/share/urdf/cmake)
+[1.791s] -- Found xacro: 2.1.1 (/opt/ros/humble/share/xacro/cmake)
+[1.798s] -- Found robot_state_publisher: 3.0.3 (/opt/ros/humble/share/robot_state_publisher/cmake)
+[1.880s] -- Found rosidl_generator_c: 3.1.9 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[1.896s] -- Found rosidl_adapter: 3.1.9 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[1.924s] -- Found rosidl_generator_cpp: 3.1.9 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[2.010s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[2.054s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[2.267s] -- Found eigen3_cmake_module: 0.1.1 (/opt/ros/humble/share/eigen3_cmake_module/cmake)
+[2.271s] -- Found Eigen3: TRUE (found version "3.4.0") 
+[2.272s] -- Ensuring Eigen3 include directory is part of orocos-kdl CMake target
+[2.444s] -- Found rmw_implementation_cmake: 6.1.3 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+[2.452s] -- Found rmw_fastrtps_cpp: 6.2.10 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+[2.530s] -- Found TinyXML2 via Config file: TinyXML2_DIR-NOTFOUND
+[2.682s] -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  
+[2.689s] -- Found TinyXML2 via Config file: TinyXML2_DIR-NOTFOUND
+[2.725s] -- Found FastRTPS: /opt/ros/humble/include  
+[2.733s] -- Found TinyXML2 via Config file: TinyXML2_DIR-NOTFOUND
+[2.755s] -- Found TinyXML2 via Config file: TinyXML2_DIR-NOTFOUND
+[2.781s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[2.818s] -- Looking for pthread.h
+[3.035s] -- Looking for pthread.h - found
+[3.036s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+[3.291s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+[3.293s] -- Found Threads: TRUE  
+[3.779s] -- Found rviz2: 11.2.28 (/opt/ros/humble/share/rviz2/cmake)
+[3.788s] -- Found ament_lint_auto: 0.12.15 (/opt/ros/humble/share/ament_lint_auto/cmake)
+[4.013s] -- Added test 'lint_cmake' to check CMake code style
+[4.019s] -- Added test 'xmllint' to check XML markup files
+[4.025s] -- Configuring done
+[4.061s] -- Generating done
+[4.072s] -- Build files have been written to: /workspace/qarm_ws/build/qarm_description
+[4.099s] Invoked command in '/workspace/qarm_ws/build/qarm_description' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /workspace/qarm_ws/src/qarm_description -DCMAKE_INSTALL_PREFIX=/workspace/qarm_ws/install/qarm_description
+[4.105s] Invoking command in '/workspace/qarm_ws/build/qarm_description': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /workspace/qarm_ws/build/qarm_description -- -j16 -l16
+[4.211s] Invoked command in '/workspace/qarm_ws/build/qarm_description' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /workspace/qarm_ws/build/qarm_description -- -j16 -l16
+[4.239s] Invoking command in '/workspace/qarm_ws/build/qarm_description': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /workspace/qarm_ws/build/qarm_description
+[4.260s] -- Install configuration: ""
+[4.268s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/ament_index/resource_index/package_run_dependencies/qarm_description
+[4.271s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/ament_index/resource_index/parent_prefix_path/qarm_description
+[4.274s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/environment/ament_prefix_path.sh
+[4.275s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/environment/ament_prefix_path.dsv
+[4.276s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/environment/path.sh
+[4.276s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/environment/path.dsv
+[4.283s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/local_setup.bash
+[4.285s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/local_setup.sh
+[4.286s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/local_setup.zsh
+[4.288s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/local_setup.dsv
+[4.288s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/package.dsv
+[4.291s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/ament_index/resource_index/packages/qarm_description
+[4.293s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/cmake/qarm_descriptionConfig.cmake
+[4.297s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/cmake/qarm_descriptionConfig-version.cmake
+[4.302s] -- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/package.xml
+[4.309s] Invoked command in '/workspace/qarm_ws/build/qarm_description' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /workspace/qarm_ws/build/qarm_description

@@ -1,0 +1,119 @@
+[0.000000] (-) TimerEvent: {}
+[0.001817] (qarm_description) JobQueued: {'identifier': 'qarm_description', 'dependencies': OrderedDict()}
+[0.001955] (qarm_description) JobStarted: {'identifier': 'qarm_description'}
+[0.035343] (qarm_description) JobProgress: {'identifier': 'qarm_description', 'progress': 'cmake'}
+[0.046944] (qarm_description) Command: {'cmd': ['/usr/bin/cmake', '/workspace/qarm_ws/src/qarm_description', '-DCMAKE_INSTALL_PREFIX=/workspace/qarm_ws/install/qarm_description'], 'cwd': '/workspace/qarm_ws/build/qarm_description', 'env': OrderedDict([('HOSTNAME', 'ElilLaptop'), ('GIT_ASKPASS', '/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/extensions/git/dist/askpass.sh'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib'), ('BROWSER', '/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/bin/helpers/browser.sh'), ('HOME', '/root'), ('OLDPWD', '/workspace/qarm_ws/qarm_description'), ('TERM_PROGRAM_VERSION', '1.139.1'), ('VSCODE_IPC_HOOK_CLI', '/tmp/vscode-ipc-b6339053-e905-4931-9511-f60709a6db55.sock'), ('ROS_PYTHON_VERSION', '3'), ('VSCODE_GIT_ASKPASS_MAIN', '/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/extensions/git/dist/askpass-main.js'), ('VSCODE_GIT_ASKPASS_NODE', '/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/node'), ('VSCODE_PYTHON_AUTOACTIVATE_GUARD', '1'), ('COLORTERM', 'truecolor'), ('REMOTE_CONTAINERS', 'true'), ('WAYLAND_DISPLAY', 'vscode-wayland-c4a5c4f9-8c77-4c0e-9fac-2401b9f378a9.sock'), ('ROS_DISTRO', 'humble'), ('REMOTE_CONTAINERS_IPC', '/tmp/vscode-remote-containers-ipc-bd9a23e6-a460-4b26-99df-01f2fae4b6dc.sock'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('TERM', 'xterm-256color'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/root/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/root/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/bin/remote-cli:/opt/ros/humble/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('XDG_RUNTIME_DIR', '/tmp/user/0'), ('REMOTE_CONTAINERS_SOCKETS', '["/tmp/.X11-unix/X0","/root/.gnupg/S.gpg-agent"]'), ('DISPLAY', ':0'), ('LANG', 'C.UTF-8'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('VSCODE_GIT_IPC_HANDLE', '/tmp/user/0/vscode-git-bb4e71e321.sock'), ('TERM_PROGRAM', 'vscode'), ('AMENT_PREFIX_PATH', '/opt/ros/humble'), ('REMOTE_CONTAINERS_DISPLAY_SOCK', '/tmp/.X11-unix/X0'), ('SHELL', '/bin/bash'), ('VSCODE_GIT_ASKPASS_EXTRA_ARGS', ''), ('PWD', '/workspace/qarm_ws/build/qarm_description'), ('LC_ALL', 'C.UTF-8'), ('COPILOT_DEBUG_NONCE', '41f462ab35f5f6ff969a47063de2da23'), ('PYTHONPATH', '/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/opt/ros/humble')]), 'shell': False}
+[0.098949] (-) TimerEvent: {}
+[0.199617] (-) TimerEvent: {}
+[0.300418] (-) TimerEvent: {}
+[0.342416] (qarm_description) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[0.400825] (-) TimerEvent: {}
+[0.471690] (qarm_description) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[0.492112] (qarm_description) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[0.501016] (-) TimerEvent: {}
+[0.601838] (-) TimerEvent: {}
+[0.702818] (-) TimerEvent: {}
+[0.730427] (qarm_description) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[0.751162] (qarm_description) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[0.752018] (qarm_description) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[0.752826] (qarm_description) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[0.761968] (qarm_description) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.803130] (-) TimerEvent: {}
+[0.904022] (-) TimerEvent: {}
+[0.969228] (qarm_description) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.981541] (qarm_description) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.982275] (qarm_description) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.982932] (qarm_description) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.992866] (qarm_description) StdoutLine: {'line': b'-- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)\n'}
+[1.004254] (-) TimerEvent: {}
+[1.105046] (-) TimerEvent: {}
+[1.205832] (-) TimerEvent: {}
+[1.306711] (-) TimerEvent: {}
+[1.372852] (qarm_description) StdoutLine: {'line': b'-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter \n'}
+[1.407031] (-) TimerEvent: {}
+[1.507914] (-) TimerEvent: {}
+[1.608708] (-) TimerEvent: {}
+[1.628340] (qarm_description) StdoutLine: {'line': b'-- Found urdf: 2.6.1 (/opt/ros/humble/share/urdf/cmake)\n'}
+[1.709175] (-) TimerEvent: {}
+[1.792715] (qarm_description) StdoutLine: {'line': b'-- Found xacro: 2.1.1 (/opt/ros/humble/share/xacro/cmake)\n'}
+[1.799574] (qarm_description) StdoutLine: {'line': b'-- Found robot_state_publisher: 3.0.3 (/opt/ros/humble/share/robot_state_publisher/cmake)\n'}
+[1.809373] (-) TimerEvent: {}
+[1.881487] (qarm_description) StdoutLine: {'line': b'-- Found rosidl_generator_c: 3.1.9 (/opt/ros/humble/share/rosidl_generator_c/cmake)\n'}
+[1.898192] (qarm_description) StdoutLine: {'line': b'-- Found rosidl_adapter: 3.1.9 (/opt/ros/humble/share/rosidl_adapter/cmake)\n'}
+[1.909625] (-) TimerEvent: {}
+[1.925951] (qarm_description) StdoutLine: {'line': b'-- Found rosidl_generator_cpp: 3.1.9 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)\n'}
+[2.009984] (-) TimerEvent: {}
+[2.012140] (qarm_description) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[2.055390] (qarm_description) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[2.110329] (-) TimerEvent: {}
+[2.211366] (-) TimerEvent: {}
+[2.269362] (qarm_description) StdoutLine: {'line': b'-- Found eigen3_cmake_module: 0.1.1 (/opt/ros/humble/share/eigen3_cmake_module/cmake)\n'}
+[2.273245] (qarm_description) StdoutLine: {'line': b'-- Found Eigen3: TRUE (found version "3.4.0") \n'}
+[2.273717] (qarm_description) StdoutLine: {'line': b'-- Ensuring Eigen3 include directory is part of orocos-kdl CMake target\n'}
+[2.311809] (-) TimerEvent: {}
+[2.413031] (-) TimerEvent: {}
+[2.445690] (qarm_description) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 6.1.3 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)\n'}
+[2.453719] (qarm_description) StdoutLine: {'line': b'-- Found rmw_fastrtps_cpp: 6.2.10 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)\n'}
+[2.513283] (-) TimerEvent: {}
+[2.532201] (qarm_description) StdoutLine: {'line': b'-- Found TinyXML2 via Config file: TinyXML2_DIR-NOTFOUND\n'}
+[2.613522] (-) TimerEvent: {}
+[2.683401] (qarm_description) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  \n'}
+[2.690556] (qarm_description) StdoutLine: {'line': b'-- Found TinyXML2 via Config file: TinyXML2_DIR-NOTFOUND\n'}
+[2.713757] (-) TimerEvent: {}
+[2.726804] (qarm_description) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/humble/include  \n'}
+[2.734687] (qarm_description) StdoutLine: {'line': b'-- Found TinyXML2 via Config file: TinyXML2_DIR-NOTFOUND\n'}
+[2.756352] (qarm_description) StdoutLine: {'line': b'-- Found TinyXML2 via Config file: TinyXML2_DIR-NOTFOUND\n'}
+[2.782508] (qarm_description) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_fastrtps_cpp' as default\n"}
+[2.814024] (-) TimerEvent: {}
+[2.819920] (qarm_description) StdoutLine: {'line': b'-- Looking for pthread.h\n'}
+[2.914250] (-) TimerEvent: {}
+[3.015001] (-) TimerEvent: {}
+[3.037264] (qarm_description) StdoutLine: {'line': b'-- Looking for pthread.h - found\n'}
+[3.038128] (qarm_description) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n'}
+[3.115289] (-) TimerEvent: {}
+[3.216655] (-) TimerEvent: {}
+[3.292466] (qarm_description) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n'}
+[3.294701] (qarm_description) StdoutLine: {'line': b'-- Found Threads: TRUE  \n'}
+[3.316939] (-) TimerEvent: {}
+[3.417840] (-) TimerEvent: {}
+[3.518709] (-) TimerEvent: {}
+[3.619580] (-) TimerEvent: {}
+[3.720712] (-) TimerEvent: {}
+[3.781034] (qarm_description) StdoutLine: {'line': b'-- Found rviz2: 11.2.28 (/opt/ros/humble/share/rviz2/cmake)\n'}
+[3.789543] (qarm_description) StdoutLine: {'line': b'-- Found ament_lint_auto: 0.12.15 (/opt/ros/humble/share/ament_lint_auto/cmake)\n'}
+[3.820961] (-) TimerEvent: {}
+[3.921851] (-) TimerEvent: {}
+[4.014480] (qarm_description) StdoutLine: {'line': b"-- Added test 'lint_cmake' to check CMake code style\n"}
+[4.020606] (qarm_description) StdoutLine: {'line': b"-- Added test 'xmllint' to check XML markup files\n"}
+[4.021949] (-) TimerEvent: {}
+[4.027129] (qarm_description) StdoutLine: {'line': b'-- Configuring done\n'}
+[4.063099] (qarm_description) StdoutLine: {'line': b'-- Generating done\n'}
+[4.073898] (qarm_description) StdoutLine: {'line': b'-- Build files have been written to: /workspace/qarm_ws/build/qarm_description\n'}
+[4.100353] (qarm_description) CommandEnded: {'returncode': 0}
+[4.102137] (qarm_description) JobProgress: {'identifier': 'qarm_description', 'progress': 'build'}
+[4.103486] (qarm_description) Command: {'cmd': ['/usr/bin/cmake', '--build', '/workspace/qarm_ws/build/qarm_description', '--', '-j16', '-l16'], 'cwd': '/workspace/qarm_ws/build/qarm_description', 'env': OrderedDict([('HOSTNAME', 'ElilLaptop'), ('GIT_ASKPASS', '/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/extensions/git/dist/askpass.sh'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib'), ('BROWSER', '/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/bin/helpers/browser.sh'), ('HOME', '/root'), ('OLDPWD', '/workspace/qarm_ws/qarm_description'), ('TERM_PROGRAM_VERSION', '1.139.1'), ('VSCODE_IPC_HOOK_CLI', '/tmp/vscode-ipc-b6339053-e905-4931-9511-f60709a6db55.sock'), ('ROS_PYTHON_VERSION', '3'), ('VSCODE_GIT_ASKPASS_MAIN', '/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/extensions/git/dist/askpass-main.js'), ('VSCODE_GIT_ASKPASS_NODE', '/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/node'), ('VSCODE_PYTHON_AUTOACTIVATE_GUARD', '1'), ('COLORTERM', 'truecolor'), ('REMOTE_CONTAINERS', 'true'), ('WAYLAND_DISPLAY', 'vscode-wayland-c4a5c4f9-8c77-4c0e-9fac-2401b9f378a9.sock'), ('ROS_DISTRO', 'humble'), ('REMOTE_CONTAINERS_IPC', '/tmp/vscode-remote-containers-ipc-bd9a23e6-a460-4b26-99df-01f2fae4b6dc.sock'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('TERM', 'xterm-256color'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/root/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/root/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/bin/remote-cli:/opt/ros/humble/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('XDG_RUNTIME_DIR', '/tmp/user/0'), ('REMOTE_CONTAINERS_SOCKETS', '["/tmp/.X11-unix/X0","/root/.gnupg/S.gpg-agent"]'), ('DISPLAY', ':0'), ('LANG', 'C.UTF-8'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('VSCODE_GIT_IPC_HANDLE', '/tmp/user/0/vscode-git-bb4e71e321.sock'), ('TERM_PROGRAM', 'vscode'), ('AMENT_PREFIX_PATH', '/opt/ros/humble'), ('REMOTE_CONTAINERS_DISPLAY_SOCK', '/tmp/.X11-unix/X0'), ('SHELL', '/bin/bash'), ('VSCODE_GIT_ASKPASS_EXTRA_ARGS', ''), ('PWD', '/workspace/qarm_ws/build/qarm_description'), ('LC_ALL', 'C.UTF-8'), ('COPILOT_DEBUG_NONCE', '41f462ab35f5f6ff969a47063de2da23'), ('PYTHONPATH', '/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/opt/ros/humble')]), 'shell': False}
+[4.122328] (-) TimerEvent: {}
+[4.211877] (qarm_description) CommandEnded: {'returncode': 0}
+[4.215845] (qarm_description) JobProgress: {'identifier': 'qarm_description', 'progress': 'install'}
+[4.222541] (-) TimerEvent: {}
+[4.239498] (qarm_description) Command: {'cmd': ['/usr/bin/cmake', '--install', '/workspace/qarm_ws/build/qarm_description'], 'cwd': '/workspace/qarm_ws/build/qarm_description', 'env': OrderedDict([('HOSTNAME', 'ElilLaptop'), ('GIT_ASKPASS', '/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/extensions/git/dist/askpass.sh'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib'), ('BROWSER', '/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/bin/helpers/browser.sh'), ('HOME', '/root'), ('OLDPWD', '/workspace/qarm_ws/qarm_description'), ('TERM_PROGRAM_VERSION', '1.139.1'), ('VSCODE_IPC_HOOK_CLI', '/tmp/vscode-ipc-b6339053-e905-4931-9511-f60709a6db55.sock'), ('ROS_PYTHON_VERSION', '3'), ('VSCODE_GIT_ASKPASS_MAIN', '/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/extensions/git/dist/askpass-main.js'), ('VSCODE_GIT_ASKPASS_NODE', '/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/node'), ('VSCODE_PYTHON_AUTOACTIVATE_GUARD', '1'), ('COLORTERM', 'truecolor'), ('REMOTE_CONTAINERS', 'true'), ('WAYLAND_DISPLAY', 'vscode-wayland-c4a5c4f9-8c77-4c0e-9fac-2401b9f378a9.sock'), ('ROS_DISTRO', 'humble'), ('REMOTE_CONTAINERS_IPC', '/tmp/vscode-remote-containers-ipc-bd9a23e6-a460-4b26-99df-01f2fae4b6dc.sock'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('TERM', 'xterm-256color'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/root/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/root/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/vscode/vscode-server/bin/linux-x64/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/bin/remote-cli:/opt/ros/humble/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('XDG_RUNTIME_DIR', '/tmp/user/0'), ('REMOTE_CONTAINERS_SOCKETS', '["/tmp/.X11-unix/X0","/root/.gnupg/S.gpg-agent"]'), ('DISPLAY', ':0'), ('LANG', 'C.UTF-8'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('VSCODE_GIT_IPC_HANDLE', '/tmp/user/0/vscode-git-bb4e71e321.sock'), ('TERM_PROGRAM', 'vscode'), ('AMENT_PREFIX_PATH', '/opt/ros/humble'), ('REMOTE_CONTAINERS_DISPLAY_SOCK', '/tmp/.X11-unix/X0'), ('SHELL', '/bin/bash'), ('VSCODE_GIT_ASKPASS_EXTRA_ARGS', ''), ('PWD', '/workspace/qarm_ws/build/qarm_description'), ('LC_ALL', 'C.UTF-8'), ('COPILOT_DEBUG_NONCE', '41f462ab35f5f6ff969a47063de2da23'), ('PYTHONPATH', '/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/opt/ros/humble')]), 'shell': False}
+[4.261409] (qarm_description) StdoutLine: {'line': b'-- Install configuration: ""\n'}
+[4.270432] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/ament_index/resource_index/package_run_dependencies/qarm_description\n'}
+[4.272683] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/ament_index/resource_index/parent_prefix_path/qarm_description\n'}
+[4.276041] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/environment/ament_prefix_path.sh\n'}
+[4.277140] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/environment/ament_prefix_path.dsv\n'}
+[4.277826] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/environment/path.sh\n'}
+[4.278567] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/environment/path.dsv\n'}
+[4.285325] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/local_setup.bash\n'}
+[4.286672] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/local_setup.sh\n'}
+[4.287706] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/local_setup.zsh\n'}
+[4.290435] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/local_setup.dsv\n'}
+[4.290731] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/package.dsv\n'}
+[4.293044] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/ament_index/resource_index/packages/qarm_description\n'}
+[4.294782] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/cmake/qarm_descriptionConfig.cmake\n'}
+[4.298771] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/cmake/qarm_descriptionConfig-version.cmake\n'}
+[4.302982] (qarm_description) StdoutLine: {'line': b'-- Installing: /workspace/qarm_ws/install/qarm_description/share/qarm_description/package.xml\n'}
+[4.309972] (qarm_description) CommandEnded: {'returncode': 0}
+[4.323668] (-) TimerEvent: {}
+[4.371663] (qarm_description) JobEnded: {'identifier': 'qarm_description', 'rc': 0}
+[4.374784] (-) EventReactorShutdown: {}
