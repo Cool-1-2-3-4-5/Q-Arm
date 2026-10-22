@@ -1,3 +1,11 @@
 build/
 install/
 log/
+
+# Internal documentation (untracked)
+setup_summary.txt
+daily_workflow.txt
+
+# Internal documentation (untracked)
+setup_summary.txt
+daily_workflow.txt
