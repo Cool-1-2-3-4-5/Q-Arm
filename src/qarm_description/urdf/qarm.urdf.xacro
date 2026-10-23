@@ -1,95 +1,162 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="qarm">
-    
-    <!-- Link Lengths & Radii (Update with physical specs later) -->
-    <xacro:property name="base_radius" value="0.05" />
-    <xacro:property name="l1_len" value="0.15" />
-    <xacro:property name="l2_len" value="0.35" />
-    <xacro:property name="l3_len" value="0.25" />
-    <xacro:property name="l4_len" value="0.10" />
+
+    <!-- ============================================================
+         QARM DIMENSIONS (Quanser QArm User Manual, Table 2)
+         All lengths in meters, all angles in radians.
+         ============================================================ -->
+    <xacro:property name="L1"   value="0.14" />              <!-- base to shoulder -->
+    <xacro:property name="L2"   value="0.35" />              <!-- upper arm: shoulder to elbow -->
+    <xacro:property name="L3"   value="0.05" />              <!-- elbow perpendicular offset -->
+    <xacro:property name="L4"   value="0.25" />              <!-- forearm: elbow to wrist -->
+    <xacro:property name="L5"   value="0.15" />              <!-- wrist to end-effector tip -->
+    <xacro:property name="beta" value="${8.13 * pi / 180}" /> <!-- elbow structural angle, 8.13 deg -->
+
+    <!-- Cosmetic cylinder radius for arm links (does not affect kinematics) -->
     <xacro:property name="link_radius" value="0.03" />
 
-    <!-- Materials -->
+    <!-- ============================================================
+         MATERIALS
+         ============================================================ -->
     <material name="dark_gray"><color rgba="0.2 0.2 0.2 1.0"/></material>
-    <material name="red"><color rgba="0.8 0.1 0.1 1.0"/></material>
+    <material name="red">      <color rgba="0.8 0.1 0.1 1.0"/></material>
+    <material name="blue">     <color rgba="0.1 0.3 0.9 1.0"/></material>
+    <material name="yellow">   <color rgba="0.95 0.85 0.1 1.0"/></material>
 
-    <!-- Base Link -->
-    <link name="base_link">
-        <visual>
-            <geometry><cylinder radius="${base_radius}" length="0.05"/></geometry>
-            <material name="dark_gray"/>
-        </visual>
-    </link>
+    <!-- ============================================================
+         BASE LINK (mounting point on worksurface, zero height)
+         Per datasheet, L1 is measured from the ground to joint_2,
+         so base_link has no vertical extent of its own.
+         ============================================================ -->
+    <link name="base_link"/>
 
-    <!-- Link 1 -->
+    <!-- ============================================================
+         LINK 1 - Base column (rotated by joint_1, the base roll)
+         Extends upward by L1 to the shoulder axis.
+         ============================================================ -->
     <link name="link_1">
         <visual>
-            <geometry><cylinder radius="${link_radius}" length="${l1_len}"/></geometry>
-            <origin xyz="0 0 ${l1_len/2}" rpy="0 0 0"/>
+            <geometry><cylinder radius="${link_radius}" length="${L1}"/></geometry>
+            <origin xyz="0 0 ${L1/2}" rpy="0 0 0"/>
             <material name="red"/>
         </visual>
     </link>
 
-    <!-- Joint 1 (Roll - Base Pan) -->
     <joint name="joint_1" type="revolute">
         <parent link="base_link"/>
-        <child link="link_1"/>
-        <origin xyz="0 0 0.025" rpy="0 0 0"/>
+        <child  link="link_1"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
         <axis xyz="0 0 1"/>
         <limit lower="-3.1415" upper="3.1415" effort="10.0" velocity="1.0"/>
     </joint>
 
-    <!-- Link 2 -->
+    <!-- ============================================================
+         LINK 2 - Upper arm (rotated by joint_2, the shoulder pitch)
+         At joint_2 = 0 the upper arm points straight up along world Z.
+         (Removed the 90-deg rpy that was tipping it sideways.)
+         ============================================================ -->
     <link name="link_2">
         <visual>
-            <geometry><cylinder radius="${link_radius}" length="${l2_len}"/></geometry>
-            <origin xyz="0 0 ${l2_len/2}" rpy="0 0 0"/>
+            <geometry><cylinder radius="${link_radius}" length="${L2}"/></geometry>
+            <origin xyz="0 0 ${L2/2}" rpy="0 0 0"/>
             <material name="dark_gray"/>
         </visual>
     </link>
 
-    <!-- Joint 2 (Pitch - Shoulder) -->
     <joint name="joint_2" type="revolute">
         <parent link="link_1"/>
-        <child link="link_2"/>
-        <origin xyz="0 0 ${l1_len}" rpy="0 1.5708 0"/>
+        <child  link="link_2"/>
+        <origin xyz="0 0 ${L1}" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
         <limit lower="-1.5708" upper="1.5708" effort="10.0" velocity="1.0"/>
     </joint>
 
-    <!-- Link 3 -->
+    <!-- ============================================================
+         ELBOW OFFSET - fixed mechanical kink (L3 and beta).
+         link_elbow is a tiny intermediate frame; adding a visible
+         yellow blob so the structural offset is drawn, not just a
+         math frame hovering in space.
+         ============================================================ -->
+    <link name="link_elbow">
+        <visual>
+            <!-- Short cylinder bridging link_2's end to joint_3.
+                 Oriented along X of link_elbow so it visually shows the
+                 L3 perpendicular offset. -->
+            <geometry><cylinder radius="${link_radius * 0.9}" length="${L3}"/></geometry>
+            <origin xyz="${L3/2} 0 0" rpy="0 1.5708 0"/>
+            <material name="yellow"/>
+        </visual>
+    </link>
+
+    <joint name="elbow_offset" type="fixed">
+        <parent link="link_2"/>
+        <child  link="link_elbow"/>
+        <origin xyz="0 0 ${L2}" rpy="0 ${beta} 0"/>
+    </joint>
+
+    <!-- ============================================================
+         LINK 3 - Forearm (rotated by joint_3, the elbow pitch)
+         Extends along its own Z by L4 to the wrist.
+         ============================================================ -->
     <link name="link_3">
         <visual>
-            <geometry><cylinder radius="${link_radius}" length="${l3_len}"/></geometry>
-            <origin xyz="0 0 ${l3_len/2}" rpy="0 0 0"/>
+            <geometry><cylinder radius="${link_radius}" length="${L4}"/></geometry>
+            <origin xyz="0 0 ${L4/2}" rpy="0 0 0"/>
             <material name="red"/>
         </visual>
     </link>
 
-    <!-- Joint 3 (Pitch - Elbow) -->
     <joint name="joint_3" type="revolute">
-        <parent link="link_2"/>
-        <child link="link_3"/>
-        <origin xyz="0 0 ${l2_len}" rpy="0 0 0"/>
+        <parent link="link_elbow"/>
+        <child  link="link_3"/>
+        <origin xyz="${L3} 0 0" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
         <limit lower="-1.5708" upper="1.5708" effort="10.0" velocity="1.0"/>
     </joint>
 
-    <!-- Link 4 (End Effector Base) -->
+    <!-- ============================================================
+         LINK 4 - Wrist housing (rotated by joint_4, the wrist roll)
+         ============================================================ -->
     <link name="link_4">
         <visual>
-            <geometry><cylinder radius="${link_radius}" length="${l4_len}"/></geometry>
-            <origin xyz="0 0 ${l4_len/2}" rpy="0 0 0"/>
+            <geometry><cylinder radius="${link_radius}" length="${L5}"/></geometry>
+            <origin xyz="0 0 ${L5/2}" rpy="0 0 0"/>
             <material name="dark_gray"/>
         </visual>
     </link>
 
-    <!-- Joint 4 (Roll - Wrist) -->
     <joint name="joint_4" type="revolute">
         <parent link="link_3"/>
-        <child link="link_4"/>
-        <origin xyz="0 0 ${l3_len}" rpy="0 0 0"/>
+        <child  link="link_4"/>
+        <origin xyz="0 0 ${L4}" rpy="0 0 0"/>
         <axis xyz="0 0 1"/>
         <limit lower="-3.1415" upper="3.1415" effort="10.0" velocity="1.0"/>
     </joint>
+
+    <!-- ============================================================
+         END EFFECTOR - FK/IK target point.
+         Blue sphere sits on the wrist roll axis (does not move when
+         joint_4 spins). A yellow bar sticks out perpendicular to the
+         axis so wrist rotation is visible.
+         ============================================================ -->
+    <link name="end_effector">
+        <!-- Sphere ON the axis -->
+        <visual>
+            <geometry><sphere radius="0.02"/></geometry>
+            <material name="blue"/>
+        </visual>
+        <!-- Bar OFF the axis so joint_4 rotation is visually obvious -->
+        <visual>
+            <geometry><box size="0.01 0.08 0.01"/></geometry>
+            <origin xyz="0 0.04 0" rpy="0 0 0"/>
+            <material name="yellow"/>
+        </visual>
+    </link>
+
+    <joint name="tool_tip" type="fixed">
+        <parent link="link_4"/>
+        <child  link="end_effector"/>
+        <origin xyz="0 0 ${L5}" rpy="0 0 0"/>
+    </joint>
+
 </robot>
