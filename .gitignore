@@ -1,11 +1,20 @@
+# ROS 2 / colcon build artifacts
 build/
 install/
 log/
 
-# Internal documentation (untracked)
-setup_summary.txt
-daily_workflow.txt
+# Python
+__pycache__/
+*.pyc
 
 # Internal documentation (untracked)
 setup_summary.txt
 daily_workflow.txt
+
+# Secrets - never commit credentials
+.env
+.env.*
+*.pem
+*.key
+.git-credentials
+secrets/
