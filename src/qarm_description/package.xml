@@ -3,9 +3,13 @@
 <package format="3">
   <name>qarm_description</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="elilgrade8@gmail.com">root</maintainer>
-  <license>TODO: License declaration</license>
+  <description>
+    URDF/Xacro model, RViz config and display launch files for the Quanser QArm,
+    a 4-DOF roll-pitch-pitch-roll manipulator. Link lengths follow Table 2 of the
+    Quanser QArm user manual.
+  </description>
+  <maintainer email="elilgrade8@gmail.com">watimake</maintainer>
+  <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
@@ -14,12 +18,12 @@
   <depend>robot_state_publisher</depend>
   <depend>rviz2</depend>
 
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
   </export>
-  
-  <exec_depend>joint_state_publisher_gui</exec_depend>
 </package>

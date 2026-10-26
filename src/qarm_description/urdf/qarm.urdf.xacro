@@ -2,15 +2,93 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="qarm">
 
     <!-- ============================================================
-         QARM DIMENSIONS (Quanser QArm User Manual, Table 2)
+         QARM DIMENSIONS
          All lengths in meters, all angles in radians.
+
+         INDEPENDENT PARAMETERS (transcribed numbers - edit these).
+         Everything else in this file is computed from them, so the
+         model can never drift out of self-consistency.
          ============================================================ -->
-    <xacro:property name="L1"   value="0.14" />              <!-- base to shoulder -->
-    <xacro:property name="L2"   value="0.35" />              <!-- upper arm: shoulder to elbow -->
-    <xacro:property name="L3"   value="0.05" />              <!-- elbow perpendicular offset -->
-    <xacro:property name="L4"   value="0.25" />              <!-- forearm: elbow to wrist -->
-    <xacro:property name="L5"   value="0.15" />              <!-- wrist to end-effector tip -->
-    <xacro:property name="beta" value="${8.13 * pi / 180}" /> <!-- elbow structural angle, 8.13 deg -->
+    <xacro:property name="L1" value="0.14" />   <!-- base (ground) to shoulder axis -->
+    <xacro:property name="L2" value="0.35" />   <!-- upper arm, ALONG the shoulder axis direction -->
+    <xacro:property name="L3" value="0.05" />   <!-- upper arm, PERPENDICULAR (the elbow kink) -->
+    <xacro:property name="L4" value="0.25" />   <!-- forearm: elbow axis to wrist axis -->
+    <xacro:property name="L5" value="0.15" />   <!-- wrist axis to end_effector reference point -->
+
+    <!-- Distance from end_effector (gripper MOUNTING reference) out to
+         the fingertip that Quanser measures net reach to. This is NOT
+         a Table 2 number: it is the residual that reconciles our link
+         chain with the manual's quoted reach, and it comes out the
+         same (46.4 mm) in both the horizontal and vertical directions,
+         which is what proves it is a constant tip extension rather
+         than a link-length error. Full derivation in
+         docs/kinematics.md, "Reach reconciliation". -->
+    <xacro:property name="L_gripper" value="0.046447" />
+
+    <!-- ============================================================
+         DERIVED PARAMETERS - DO NOT HAND-EDIT.
+
+         Figure 3 of the manual labels the arm twice over:
+           * L1..L5  are the RAW physical dimensions (Table 2).
+           * lambda_i are the EFFECTIVE link lengths, i.e. the actual
+             straight-line distance between two consecutive joint
+             axes. Those are what a DH chain is built out of.
+
+         For most links the two agree, but at the elbow they do not,
+         because L2 and L3 are the two CARTESIAN COMPONENTS of one
+         single vector: shoulder -> elbow. lambda_2 is that vector's
+         LENGTH and beta is its ANGLE off vertical. So beta and L3 are
+         two descriptions of THE SAME mechanical feature (the kink)
+         and must never both be applied.
+
+                  elbow
+                    o
+                   /|
+                  / |  L2 = 0.35   (component along link_2's own z)
+        lambda_2 /  |
+                /   |
+               / b  |   lambda_2 = sqrt(L2^2 + L3^2) = 0.353553 m
+              o=====+   beta     = atan2(L3, L2)     = 8.1301 deg
+          shoulder
+               L3 = 0.05  (perpendicular component)
+
+         AGREEMENT CHECK: the manual quotes beta = 8.13 deg in
+         Table 2. atan2(0.05, 0.35) = 8.1301 deg, i.e. Table 2's value
+         to the 2 decimals it is printed with. Computing it here
+         instead of retyping it is what prevents the "applied twice"
+         bug this file used to have (see docs/kinematics.md).
+         ============================================================ -->
+    <xacro:property name="lambda_1" value="${L1}" />                  <!-- base -> shoulder axis -->
+    <xacro:property name="lambda_2" value="${sqrt(L2*L2 + L3*L3)}" /> <!-- shoulder -> elbow axis -->
+    <xacro:property name="lambda_3" value="${L4}" />                  <!-- elbow -> wrist axis -->
+    <xacro:property name="lambda_4" value="${L5}" />                  <!-- wrist -> end_effector -->
+    <xacro:property name="beta"     value="${atan2(L3, L2)}" />
+
+    <!-- ============================================================
+         JOINT LIMITS
+         Source: Quanser QArm product page, Specifications table
+         ("Minimum and Maximum Joint Range", "Maximum Joint Speed").
+         https://www.quanser.com/products/qarm/
+
+         CAVEAT: these ranges are stated in Quanser's own joint
+         convention. Symmetric ranges (base/shoulder/wrist) transfer
+         regardless of where zero sits, but the ASYMMETRIC elbow
+         range (-95/+75) assumes Quanser's elbow zero equals ours.
+         Confirm against hardware before trusting it for IK limits.
+         ============================================================ -->
+    <xacro:property name="deg" value="${pi / 180.0}" />
+
+    <xacro:property name="q1_min" value="${-170 * deg}" />
+    <xacro:property name="q1_max" value="${ 170 * deg}" />
+    <xacro:property name="q2_min" value="${ -85 * deg}" />
+    <xacro:property name="q2_max" value="${  85 * deg}" />
+    <xacro:property name="q3_min" value="${ -95 * deg}" />
+    <xacro:property name="q3_max" value="${  75 * deg}" />
+    <xacro:property name="q4_min" value="${-160 * deg}" />
+    <xacro:property name="q4_max" value="${ 160 * deg}" />
+
+    <xacro:property name="vel_max"    value="${90 * deg}" />  <!-- 90 deg/s -->
+    <xacro:property name="effort_max" value="10.0" />         <!-- placeholder, not from datasheet -->
 
     <!-- Cosmetic cylinder radius for arm links (does not affect kinematics) -->
     <xacro:property name="link_radius" value="0.03" />
@@ -25,8 +103,8 @@
 
     <!-- ============================================================
          BASE LINK (mounting point on worksurface, zero height)
-         Per datasheet, L1 is measured from the ground to joint_2,
-         so base_link has no vertical extent of its own.
+         L1 is measured from the mounting plane to joint_2, so
+         base_link has no vertical extent of its own.
          ============================================================ -->
     <link name="base_link"/>
 
@@ -47,19 +125,30 @@
         <child  link="link_1"/>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <axis xyz="0 0 1"/>
-        <limit lower="-3.1415" upper="3.1415" effort="10.0" velocity="1.0"/>
+        <limit lower="${q1_min}" upper="${q1_max}"
+               effort="${effort_max}" velocity="${vel_max}"/>
     </joint>
 
     <!-- ============================================================
          LINK 2 - Upper arm (rotated by joint_2, the shoulder pitch)
-         At joint_2 = 0 the upper arm points straight up along world Z.
-         (Removed the 90-deg rpy that was tipping it sideways.)
+
+         At joint_2 = 0 link_2's own z points straight up along world
+         Z. The elbow is NOT straight above the shoulder: it sits at
+         (L3, 0, L2) in link_2, i.e. lambda_2 away at angle beta. The
+         visual is drawn along that true line so RViz shows the real
+         upper arm rather than a vertical stick that misses the elbow.
          ============================================================ -->
     <link name="link_2">
         <visual>
-            <geometry><cylinder radius="${link_radius}" length="${L2}"/></geometry>
-            <origin xyz="0 0 ${L2/2}" rpy="0 0 0"/>
+            <geometry><cylinder radius="${link_radius}" length="${lambda_2}"/></geometry>
+            <origin xyz="${L3/2} 0 ${L2/2}" rpy="0 ${beta} 0"/>
             <material name="dark_gray"/>
+        </visual>
+        <!-- Marker at the elbow so the kink is visible -->
+        <visual>
+            <geometry><sphere radius="${link_radius * 0.95}"/></geometry>
+            <origin xyz="${L3} 0 ${L2}" rpy="0 0 0"/>
+            <material name="yellow"/>
         </visual>
     </link>
 
@@ -68,35 +157,29 @@
         <child  link="link_2"/>
         <origin xyz="0 0 ${L1}" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
-        <limit lower="-1.5708" upper="1.5708" effort="10.0" velocity="1.0"/>
-    </joint>
-
-    <!-- ============================================================
-         ELBOW OFFSET - fixed mechanical kink (L3 and beta).
-         link_elbow is a tiny intermediate frame; adding a visible
-         yellow blob so the structural offset is drawn, not just a
-         math frame hovering in space.
-         ============================================================ -->
-    <link name="link_elbow">
-        <visual>
-            <!-- Short cylinder bridging link_2's end to joint_3.
-                 Oriented along X of link_elbow so it visually shows the
-                 L3 perpendicular offset. -->
-            <geometry><cylinder radius="${link_radius * 0.9}" length="${L3}"/></geometry>
-            <origin xyz="${L3/2} 0 0" rpy="0 1.5708 0"/>
-            <material name="yellow"/>
-        </visual>
-    </link>
-
-    <joint name="elbow_offset" type="fixed">
-        <parent link="link_2"/>
-        <child  link="link_elbow"/>
-        <origin xyz="0 0 ${L2}" rpy="0 ${beta} 0"/>
+        <limit lower="${q2_min}" upper="${q2_max}"
+               effort="${effort_max}" velocity="${vel_max}"/>
     </joint>
 
     <!-- ============================================================
          LINK 3 - Forearm (rotated by joint_3, the elbow pitch)
-         Extends along its own Z by L4 to the wrist.
+
+         *** THE WHOLE ELBOW GEOMETRY LIVES IN THIS ONE <origin>. ***
+
+         xyz="L3 0 L2"  places the elbow axis (the shoulder->elbow
+                        vector, expressed in link_2's frame)
+         rpy="0 beta 0" pre-pitches the forearm by the structural
+                        angle, so at q3 = 0 the forearm is COLINEAR
+                        with the upper arm: the arm is dead straight
+                        at the zero pose.
+
+         This file previously split these two across a separate
+         'elbow_offset' fixed joint AND this origin, which applied
+         beta twice and shrank the upper arm from 353.6 mm to
+         346.5 mm. Collapsing both into a single origin makes that
+         class of bug structurally impossible: there is exactly one
+         place the elbow geometry can be written. Do not add an
+         intermediate fixed joint back in.
          ============================================================ -->
     <link name="link_3">
         <visual>
@@ -107,15 +190,18 @@
     </link>
 
     <joint name="joint_3" type="revolute">
-        <parent link="link_elbow"/>
+        <parent link="link_2"/>
         <child  link="link_3"/>
-        <origin xyz="${L3} 0 0" rpy="0 0 0"/>
+        <origin xyz="${L3} 0 ${L2}" rpy="0 ${beta} 0"/>
         <axis xyz="0 1 0"/>
-        <limit lower="-1.5708" upper="1.5708" effort="10.0" velocity="1.0"/>
+        <limit lower="${q3_min}" upper="${q3_max}"
+               effort="${effort_max}" velocity="${vel_max}"/>
     </joint>
 
     <!-- ============================================================
          LINK 4 - Wrist housing (rotated by joint_4, the wrist roll)
+         joint_4 is collinear with the forearm, so q4 changes
+         orientation only, never end_effector position.
          ============================================================ -->
     <link name="link_4">
         <visual>
@@ -130,14 +216,18 @@
         <child  link="link_4"/>
         <origin xyz="0 0 ${L4}" rpy="0 0 0"/>
         <axis xyz="0 0 1"/>
-        <limit lower="-3.1415" upper="3.1415" effort="10.0" velocity="1.0"/>
+        <limit lower="${q4_min}" upper="${q4_max}"
+               effort="${effort_max}" velocity="${vel_max}"/>
     </joint>
 
     <!-- ============================================================
-         END EFFECTOR - FK/IK target point.
-         Blue sphere sits on the wrist roll axis (does not move when
-         joint_4 spins). A yellow bar sticks out perpendicular to the
-         axis so wrist rotation is visible.
+         END EFFECTOR - the FK/IK target frame.
+
+         NOTE: this is the GRIPPER MOUNTING reference point, L5
+         (= lambda_4) past the wrist axis. It is NOT the gripper
+         fingertip. Its position must never be changed: FK, IK and the
+         saved RViz config all target this frame. If you want the
+         fingertip, use gripper_tip below.
          ============================================================ -->
     <link name="end_effector">
         <!-- Sphere ON the axis -->
@@ -157,6 +247,27 @@
         <parent link="link_4"/>
         <child  link="end_effector"/>
         <origin xyz="0 0 ${L5}" rpy="0 0 0"/>
+    </joint>
+
+    <!-- ============================================================
+         GRIPPER TIP - extra reference frame, NOT the FK/IK target.
+
+         Exists only so the manual's quoted net reach is reproducible:
+             horizontal: lambda_2 + lambda_3 + lambda_4 + L_gripper
+                         = 0.753553 + 0.046447 = 0.800 m
+             vertical:   lambda_1 + the same chain
+                         = 0.893553 + 0.046447 = 0.940 m
+         Both match Table 2's reach exactly, which is the evidence
+         that the 46.4 mm really is gripper length past the mounting
+         face. It lies ON the tool axis (+z of link_4), so like
+         end_effector it is unaffected by the q4 roll.
+         ============================================================ -->
+    <link name="gripper_tip"/>
+
+    <joint name="gripper_tip_joint" type="fixed">
+        <parent link="end_effector"/>
+        <child  link="gripper_tip"/>
+        <origin xyz="0 0 ${L_gripper}" rpy="0 0 0"/>
     </joint>
 
 </robot>

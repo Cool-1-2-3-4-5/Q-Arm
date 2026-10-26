@@ -11,6 +11,9 @@ __pycache__/
 setup_summary.txt
 daily_workflow.txt
 
+# Agent scratch space and task reports (not source)
+.agents/
+
 # Secrets - never commit credentials
 .env
 .env.*

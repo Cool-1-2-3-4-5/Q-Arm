@@ -1,0 +1,133 @@
+"""Single source of truth for QArm geometry.
+
+Every number the kinematics code uses lives here and nowhere else. If you need
+to change a dimension, change it HERE and in the Xacro, then re-run the FK-vs-TF
+test (``test/test_fk_vs_tf.py``) which will fail loudly if the two drift apart.
+
+Source of the raw numbers: Quanser QArm user manual, Table 2 (link lengths) and
+Figure 3 (the drawing that defines what each length actually spans).
+
+WHY THERE ARE TWO COPIES OF THE GEOMETRY
+----------------------------------------
+``qarm_description/urdf/qarm.urdf.xacro`` declares the same physical L1..L5
+independently, because a URDF has to stand on its own for RViz, TF and
+(later) ros2_control. We deliberately do NOT parse the URDF here - that would
+hide bugs by construction, since a wrong URDF would produce an equally wrong
+FK and the two would always agree.
+
+Instead the two descriptions are kept independent and the FK-vs-TF test in
+Piece 4 is the GUARD: it compares this module's FK against the TF tree that
+robot_state_publisher computes from the Xacro. If anyone edits one copy and
+forgets the other, that test fails.
+"""
+
+import math
+
+
+# ---------------------------------------------------------------------------
+# RAW PHYSICAL DIMENSIONS - Quanser QArm manual, Table 2. Metres.
+#
+# These five numbers are the ONLY independent inputs. Everything below is
+# computed from them, so a derived value can never silently disagree with the
+# physical one.
+# ---------------------------------------------------------------------------
+L1 = 0.14   # worksurface (mounting plane) up to the shoulder axis (joint_2)
+L2 = 0.35   # upper arm, component measured ALONG the upper arm's own axis
+L3 = 0.05   # upper arm, component measured PERPENDICULAR to it: the elbow kink
+L4 = 0.25   # forearm: elbow axis (joint_3) to wrist axis (joint_4)
+L5 = 0.15   # wrist axis to end_effector, the gripper MOUNTING reference
+
+
+# ---------------------------------------------------------------------------
+# THE ELBOW KINK - why beta is computed and never typed in.
+#
+# Figure 3 draws the upper arm as a right triangle:
+#
+#               elbow
+#                 o
+#                /|
+#               / |   L2 = 0.35   (vertical dashed line in Figure 3)
+#     lambda_2 /  |
+#             / b |   b = beta
+#            o----+
+#        shoulder  L3 = 0.05      (horizontal offset at the top of L2)
+#
+# L2 and L3 are the two CARTESIAN COMPONENTS of one single vector, the
+# shoulder -> elbow vector. lambda_2 is that vector's LENGTH; beta is its
+# ANGLE off vertical. They describe THE SAME mechanical feature, so applying
+# both an L3 translation and a beta rotation double-counts the kink. (That was
+# the original bug in the URDF.) Pythagoras and atan2 are two views of one
+# triangle, not two separate pieces of hardware.
+#
+# AGREEMENT CHECK: Table 2 prints beta = 8.13 deg.
+#   atan2(0.05, 0.35) = 0.141897 rad = 8.1301 deg.
+# Identical to the two decimals the manual gives, which confirms our reading
+# of the figure.
+# ---------------------------------------------------------------------------
+BETA = math.atan2(L3, L2)          # 0.141897 rad == 8.1301 deg
+
+
+# ---------------------------------------------------------------------------
+# EFFECTIVE (lambda) LINK LENGTHS - what the DH chain is actually built from.
+#
+# A DH link length is the straight-line distance between two consecutive joint
+# AXES. Figure 3 labels these lambda_1..lambda_4. For three of the four links
+# the raw L value already is that distance; only the elbow link differs,
+# because of the kink above.
+#
+#   lambda_1 = L1                     base axis  -> shoulder axis
+#   lambda_2 = sqrt(L2^2 + L3^2)      shoulder axis -> elbow axis  (hypotenuse)
+#   lambda_3 = L4                     elbow axis -> wrist axis
+#   lambda_4 = L5                     wrist axis -> end_effector
+#
+# lambda_3 and lambda_4 are collinear (both run along the forearm/tool axis,
+# with no offset between them), so the DH chain only ever needs their sum. We
+# still name them separately to stay readable against Figure 3.
+# ---------------------------------------------------------------------------
+LAMBDA_1 = L1
+LAMBDA_2 = math.sqrt(L2 * L2 + L3 * L3)   # 0.353553 m
+LAMBDA_3 = L4
+LAMBDA_4 = L5
+TOOL_LENGTH = LAMBDA_3 + LAMBDA_4         # 0.40 m, wrist-axis-to-tool, collinear
+
+
+# ---------------------------------------------------------------------------
+# GRIPPER EXTENSION beyond end_effector.
+#
+# The manual quotes a net reach of 0.800 m horizontal and 0.940 m vertical
+# above the worksurface. Our chain reaches:
+#   horizontal  lambda_2 + lambda_3 + lambda_4            = 0.753553 m
+#   vertical    lambda_1 + lambda_2 + lambda_3 + lambda_4 = 0.893553 m
+# Both fall short by the SAME 0.046447 m. A link-length error would show up
+# differently in the two directions; an identical shortfall can only be a
+# constant length tacked onto the tip. So: end_effector is the gripper
+# MOUNTING face, and the manual measures to the FINGERTIP, 46.4 mm further
+# out. L1..L5 are correct as given and must not be "fixed".
+# ---------------------------------------------------------------------------
+L_GRIPPER = 0.046447
+
+
+# ---------------------------------------------------------------------------
+# JOINT LIMITS (radians), matching the <limit> tags in the Xacro.
+# Source: Quanser QArm product-page specifications table.
+#
+# CAVEAT carried over from the URDF: these are stated in Quanser's own joint
+# convention. The symmetric ranges transfer no matter where zero sits, but the
+# asymmetric elbow range (-95/+75) assumes Quanser's elbow zero equals ours.
+# Confirm on hardware before trusting it for IK.
+# ---------------------------------------------------------------------------
+JOINT_NAMES = ('joint_1', 'joint_2', 'joint_3', 'joint_4')
+
+JOINT_LIMITS = (
+    (math.radians(-170.0), math.radians(170.0)),   # joint_1  base roll
+    (math.radians(-85.0), math.radians(85.0)),     # joint_2  shoulder pitch
+    (math.radians(-95.0), math.radians(75.0)),     # joint_3  elbow pitch
+    (math.radians(-160.0), math.radians(160.0)),   # joint_4  wrist roll
+)
+
+NUM_JOINTS = len(JOINT_NAMES)
+
+# TF frames of interest.
+BASE_FRAME = 'base_link'
+EE_FRAME = 'end_effector'        # the FK/IK target
+TIP_FRAME = 'gripper_tip'        # fingertip, EE_FRAME + L_GRIPPER along the tool
