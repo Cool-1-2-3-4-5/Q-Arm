@@ -71,24 +71,36 @@ BETA = math.atan2(L3, L2)          # 0.141897 rad == 8.1301 deg
 # EFFECTIVE (lambda) LINK LENGTHS - what the DH chain is actually built from.
 #
 # A DH link length is the straight-line distance between two consecutive joint
-# AXES. Figure 3 labels these lambda_1..lambda_4. For three of the four links
-# the raw L value already is that distance; only the elbow link differs,
-# because of the kink above.
+# AXES. Figure 3 labels these lambda_1..lambda_3 - THREE of them, not four.
+# For two of the three the raw L value already is that distance; only the
+# elbow link differs, because of the kink above.
 #
 #   lambda_1 = L1                     base axis  -> shoulder axis
 #   lambda_2 = sqrt(L2^2 + L3^2)      shoulder axis -> elbow axis  (hypotenuse)
-#   lambda_3 = L4                     elbow axis -> wrist axis
-#   lambda_4 = L5                     wrist axis -> end_effector
+#   lambda_3 = L4 + L5                elbow axis -> end_effector
 #
-# lambda_3 and lambda_4 are collinear (both run along the forearm/tool axis,
-# with no offset between them), so the DH chain only ever needs their sum. We
-# still name them separately to stay readable against Figure 3.
+# NOTE ON lambda_3 (verified against the manual's Figure 3 bracket): the
+# manual's lambda_3 bracket starts at the elbow axis and runs all the way to
+# the frame-4 origin, so it spans L4 AND L5 - straight ACROSS joint 4, whose
+# wrist-roll axis sits at the L4/L5 boundary.
+#
+# Lumping a translation past a joint like that is legal in DH only because
+# joint 4 rotates about the very axis it slides along: the wrist roll is
+# collinear with the forearm, so L4 and L5 stay parallel no matter what q4
+# does, and Rz/Tz about a shared axis commute. That same collinearity is why
+# q4 cannot change the end-effector POSITION (see the q4-invariance tests).
+#
+# An earlier version of this file split this into lambda_3 = L4 and an
+# invented lambda_4 = L5. That notation does not exist in the manual. The
+# numbers were always identical (0.25 + 0.15 = 0.40 either way), so this
+# rename changed no math - only the symbol names, which now match Quanser's.
 # ---------------------------------------------------------------------------
 LAMBDA_1 = L1
 LAMBDA_2 = math.sqrt(L2 * L2 + L3 * L3)   # 0.353553 m
-LAMBDA_3 = L4
-LAMBDA_4 = L5
-TOOL_LENGTH = LAMBDA_3 + LAMBDA_4         # 0.40 m, wrist-axis-to-tool, collinear
+LAMBDA_3 = L4 + L5                        # 0.400000 m, elbow axis -> end_effector
+
+# Kept as a readable alias for DH row 4's d term; identical to LAMBDA_3.
+TOOL_LENGTH = LAMBDA_3
 
 
 # ---------------------------------------------------------------------------
@@ -96,8 +108,8 @@ TOOL_LENGTH = LAMBDA_3 + LAMBDA_4         # 0.40 m, wrist-axis-to-tool, collinea
 #
 # The manual quotes a net reach of 0.800 m horizontal and 0.940 m vertical
 # above the worksurface. Our chain reaches:
-#   horizontal  lambda_2 + lambda_3 + lambda_4            = 0.753553 m
-#   vertical    lambda_1 + lambda_2 + lambda_3 + lambda_4 = 0.893553 m
+#   horizontal  lambda_2 + lambda_3            = 0.753553 m
+#   vertical    lambda_1 + lambda_2 + lambda_3 = 0.893553 m
 # Both fall short by the SAME 0.046447 m. A link-length error would show up
 # differently in the two directions; an identical shortfall can only be a
 # constant length tacked onto the tip. So: end_effector is the gripper

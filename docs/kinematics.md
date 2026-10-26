@@ -41,12 +41,28 @@ lambda_2 /  |
    shoulder  L3 = 0.05      (horizontal offset at the top of L2)
 ```
 
-| Symbol   | Definition              | Value      |
-|----------|-------------------------|------------|
-| lambda_1 | L1                      | 0.140000 m |
-| lambda_2 | sqrt(L2^2 + L3^2)       | 0.353553 m |
-| lambda_3 | L4                      | 0.250000 m |
-| lambda_4 | L5                      | 0.150000 m |
+Figure 3 labels **three** of them, lambda_1..lambda_3:
+
+| Symbol   | Definition              | Spans                       | Value      |
+|----------|-------------------------|-----------------------------|------------|
+| lambda_1 | L1                      | base axis -> shoulder axis  | 0.140000 m |
+| lambda_2 | sqrt(L2^2 + L3^2)       | shoulder axis -> elbow axis | 0.353553 m |
+| lambda_3 | L4 + L5                 | elbow axis -> `end_effector`| 0.400000 m |
+
+**lambda_3 spans L4 AND L5, straight across joint 4.** The manual's lambda_3
+bracket starts at the elbow axis and ends at the frame-4 origin, with the
+wrist-roll joint sitting at the L4/L5 boundary partway along it.
+
+Lumping a translation past a joint like that is legal in DH only because
+joint 4 rotates about the very axis it slides along: the wrist roll runs
+straight down the forearm, so L4 and L5 remain parallel whatever q4 does, and
+Rz/Tz about a shared axis commute. That same collinearity is the reason q4
+cannot change end-effector position - one fact, two consequences.
+
+An earlier revision of this document split this into lambda_3 = L4 plus an
+invented lambda_4 = L5. That notation is not in the manual. The numbers were
+always identical (0.25 + 0.15 = 0.40 either way), so correcting it changed no
+math - only the symbols, which now match Quanser's.
 
 **L3 and beta are TWO DESCRIPTIONS OF ONE MECHANICAL FEATURE.** L2 and L3 are
 the two Cartesian components of the single shoulder-to-elbow vector; lambda_2 is
@@ -61,9 +77,6 @@ with. So the kink must be applied **exactly once**. Applying an L3 translation
 the effective upper arm from 353.6 mm to 346.5 mm). Omitting the kink entirely
 would leave 350.0 mm. Both failure modes are caught by
 `test_kink_applied_exactly_once`.
-
-lambda_3 and lambda_4 are collinear - both run along the forearm/tool axis with
-no offset between them - so the DH chain only ever needs their sum, 0.40 m.
 
 In the Xacro and in `robot_params.py`, L1..L5 are the only typed-in numbers;
 beta and every lambda are computed. A derived value therefore cannot drift away
@@ -117,8 +130,7 @@ offset is itself a rotated translation:
 Substituting that into the URDF chain, the Ry(-beta) cancels the structural
 Ry(beta) that immediately follows it, and Rz/Tz about a common axis commute, so
 
-    T = Rz(q1) Tz(lambda_1) Ry(q2+beta) Tz(lambda_2) Ry(q3)
-        Tz(lambda_3+lambda_4) Rz(q4)
+    T = Rz(q1) Tz(lambda_1) Ry(q2+beta) Tz(lambda_2) Ry(q3) Tz(lambda_3) Rz(q4)
 
 which is four joints acting on three effective lengths - the DH form:
 
@@ -127,7 +139,7 @@ which is four joints acting on three effective lengths - the DH form:
 | 1 | q1                 | lambda_1 = 0.140000   | 0                 | -pi/2   | base roll, `joint_1`; climb L1 to the shoulder axis   |
 | 2 | q2 + beta - pi/2   | 0                     | lambda_2 = 0.353553 | 0     | shoulder pitch, `joint_2`; the kink lives HERE, once  |
 | 3 | q3 + pi/2          | 0                     | 0                 | +pi/2   | elbow pitch, `joint_3`; no beta - already spent       |
-| 4 | q4                 | lambda_3+lambda_4 = 0.400000 | 0          | 0       | wrist roll, `joint_4`; tool runs along the roll axis  |
+| 4 | q4                 | lambda_3 = 0.400000   | 0                 | 0       | wrist roll, `joint_4`; tool runs along the roll axis   |
 
 The constant -pi/2 and +pi/2 in theta_2 and theta_3 are frame bookkeeping, not
 physical angles: they convert "pitch about y" into DH's "rotate about z, twist
@@ -163,8 +175,8 @@ the worksurface. The corrected chain gives, to `end_effector`:
 
 | direction  | pose                  | computed                                      | manual  | gap        |
 |------------|-----------------------|-----------------------------------------------|---------|------------|
-| horizontal | q2 = 90 deg - beta    | lambda_2+lambda_3+lambda_4 = 0.753553 m       | 0.800 m | 0.046447 m |
-| vertical   | q2 = -beta            | lambda_1+lambda_2+lambda_3+lambda_4 = 0.893553 m | 0.940 m | 0.046447 m |
+| horizontal | q2 = 90 deg - beta    | lambda_2 + lambda_3 = 0.753553 m              | 0.800 m | 0.046447 m |
+| vertical   | q2 = -beta            | lambda_1 + lambda_2 + lambda_3 = 0.893553 m   | 0.940 m | 0.046447 m |
 
 The gap is **identical** in both directions. That is the whole argument: a wrong
 link length would project differently into the horizontal and the vertical, so
@@ -204,8 +216,8 @@ Because q4 is decoupled from position, IK splits cleanly:
 
 1. Given a target position p = (x, y, z) in `base_link`, solve q1, q2, q3.
    q1 orients the whole arm's plane, after which it reduces to a two-link
-   planar reach problem in lambda_2 and (lambda_3 + lambda_4), with the beta
-   offset folded into q2 exactly as in row 2 of the DH table.
+   planar reach problem in lambda_2 = 0.353553 and lambda_3 = 0.400000, with
+   the beta offset folded into q2 exactly as in row 2 of the DH table.
 2. Given a target orientation, solve q4.
 
 A closed-form solution is expected. Elbow-up / elbow-down will give two solution

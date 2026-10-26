@@ -56,8 +56,8 @@ pure translation, because (L3, 0, L2) = lambda_2 * (sin beta, 0, cos beta):
 Substituting that, the Ry(-beta) cancels the structural Ry(beta) that follows
 it, and Rz/Tz about the same axis commute, so the chain collapses to
 
-    T = Rz(q1) Tz(lambda_1) Ry(q2 + beta) Tz(lambda_2) Ry(q3) Tz(lambda_3 +
-        lambda_4) Rz(q4)
+    T = Rz(q1) Tz(lambda_1) Ry(q2 + beta) Tz(lambda_2) Ry(q3) Tz(lambda_3)
+        Rz(q4)
 
 which is exactly four joints acting on three effective lengths - the DH form.
 The constant -pi/2 in row 2 and +pi/2 in row 3 are NOT physical; they are the
@@ -175,8 +175,11 @@ def dh_table(q):
 
     Row 4 - wrist roll, URDF ``joint_4`` (axis +Z of ``link_3``).
         theta = q4          the roll, straight through.
-        d     = lambda_3 + lambda_4
+        d     = lambda_3   = L4 + L5
                             0.25 + 0.15 = 0.40 m out to ``end_effector``.
+                            The manual's lambda_3 spans both links, straight
+                            across this very joint - legal precisely because
+                            the roll axis and the slide axis are the same one.
                             It is a d (slide along the joint axis) and not an
                             a, because the wrist axis runs ALONG the forearm.
                             That is also the geometric reason q4 cannot move
