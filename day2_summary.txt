@@ -1,0 +1,601 @@
+================================================================================
+        QARM ROS 2 CONTROL STACK - DAY 2 SUMMARY
+        Geometry reconciliation + Forward Kinematics
+================================================================================
+
+Date:        2026-10-26
+Developer:   Mechatronics Engineering Co-op Student, University of Waterloo
+Repository:  https://github.com/Cool-1-2-3-4-5/Q-Arm
+Commits:     70a556a  feat: add qarm_kinematics FK package, fix URDF geometry
+                      and kinematics doc
+             9f8e403  docs: match manual notation, lambda_3 = L4 + L5
+                      (no math change)
+
+Goal status after today (original 5-goal priority list):
+  1. Update URDF with real QArm dimensions ......... DONE (closed properly)
+  2. Implement forward kinematics .................. DONE and validated
+  3. Implement inverse kinematics .................. NEXT
+  4. Add collision geometry ........................ not started
+  5. Set up ros2_control ........................... not started
+
+
+================================================================================
+        1. WHERE WE STARTED
+================================================================================
+
+One package, qarm_description:
+  - qarm.urdf.xacro         4-DOF RPPR model, parameterized with L1..L5, beta
+  - display.launch.py       xacro -> robot_state_publisher -> RViz + slider GUI
+  - qarm.rviz               saved RViz config, Fixed Frame base_link
+  - docs/kinematics.md      link lengths from Table 2 + a hand-written DH table
+
+Forward kinematics existed only as prose in docs/kinematics.md. No solver code,
+no kinematics package, no tests.
+
+
+================================================================================
+        2. PROBLEMS FOUND
+================================================================================
+
+ISSUE 1 - The DH table contradicted the URDF.
+  The table listed L3 as d_3, a translation along the joint-3 axis. Since
+  joint 3 is the elbow PITCH, that makes the 50 mm offset point sideways, out
+  of the arm's bending plane. The URDF had it in-plane. Two different robots.
+  The table also used a_2 = L2, implying a horizontal zero pose, while the
+  URDF's zero pose is vertical. The doc already carried a "TODO: verify this
+  table against Figure 3" note.
+
+ISSUE 2 - The elbow kink was applied TWICE. (the real bug)
+  atan(L3/L2) = atan(0.05/0.35) = 8.13 deg = beta, exactly.
+  That is not a coincidence: L3 and beta describe THE SAME mechanical feature.
+  But the URDF applied an Ry(beta) rotation on elbow_offset AND a separate
+  L3 translation on joint_3.
+
+  Effect: the elbow sat at (0.0495, 0, 0.4929) instead of (0.05, 0, 0.49).
+  The effective upper arm was 346.5 mm instead of 353.6 mm - 7.1 mm short.
+  The model failed to reproduce Quanser's own Table 2 numbers.
+
+ISSUE 3 - Reach did not match the datasheet.
+  Manual: 0.800 m horizontal, 0.940 m vertical above the worksurface.
+  L1+L2+L4+L5 = 0.89 m, so 0.940 m looked unreachable. 46 mm unexplained.
+
+ISSUE 4 - Notation error (found by the student, after the fix).
+  The first pass invented lambda_4 = L5. Figure 3's lambda_3 bracket actually
+  spans L4 AND L5, straight across joint 4. Corrected - see section 4.
+
+Pre-existing items also cleaned up:
+  - package.xml had "TODO: Package description", "TODO: License declaration",
+    maintainer "root". A missing license fails ament_lint_auto under colcon test.
+
+
+================================================================================
+        3. HOW THEY WERE RESOLVED
+================================================================================
+
+Resolved by reading the Quanser manual directly (Figure 3 + Table 2). The
+student supplied the figure; no guessing was involved.
+
+FIGURE 3 SHOWS: beta is the angle between L2 (vertical dashed line) and
+lambda_2 (the slanted line from shoulder to elbow). L3 is the horizontal
+offset at the top of L2. So L2, L3 and lambda_2 form a right triangle:
+
+               elbow axis
+                  o
+                 /|
+                / |   L2 = 0.35      <- one Cartesian component
+    lambda_2   /  |
+    = 0.3536  / b |   b = beta
+             o----+
+       shoulder    L3 = 0.05         <- the other component
+       axis
+
+    lambda_2 = sqrt(L2^2 + L3^2) = 0.353553 m
+    beta     = atan(L3 / L2)     = 8.1301 deg
+
+Three descriptions of ONE triangle. Give any two, the third follows. beta is
+therefore NOT independent information, which is exactly why typing in both L3
+and beta let the URDF double-count the bend.
+
+FIX: apply the kink exactly once. All elbow geometry now lives in a single
+place - joint_3's <origin> - which makes a second application structurally
+impossible. The old intermediate elbow_offset joint and link_elbow frame are
+gone.
+
+REACH (Issue 3) - resolved, and it was NOT a modelling error:
+
+  direction    computed to end_effector    manual    gap
+  horizontal   0.753553 m                  0.800 m   0.046447 m
+  vertical     0.893553 m                  0.940 m   0.046447 m
+
+The gap is IDENTICAL in both directions. That is the whole argument: a wrong
+link length would project differently into horizontal and vertical, so an
+identical shortfall can only be a constant length appended at the tip.
+
+CONCLUSION: end_effector is the gripper MOUNTING face. The manual measures
+reach to the FINGERTIP, ~46.4 mm further out. L1..L5 are correct as given and
+must NOT be adjusted to force the numbers to match.
+
+So the Xacro gained L_gripper = 0.046447 and an ADDITIONAL frame gripper_tip.
+end_effector did not move, so the saved RViz config and all prior work stay
+valid. Reach to gripper_tip now reproduces 0.800000 / 0.940000 exactly.
+
+
+================================================================================
+        4. EFFECTIVE (LAMBDA) LENGTHS - the key concept
+================================================================================
+
+L values     = how a mechanical drawing describes the part.
+lambda values = the straight-line distance between consecutive joint AXES.
+                This is what a DH chain is actually built from.
+
+They are the same number unless a link is BENT. Only the upper arm is bent.
+
+  Symbol     Definition         Spans                          Value
+  lambda_1   L1                 base axis -> shoulder axis      0.140000 m
+  lambda_2   sqrt(L2^2+L3^2)    shoulder axis -> elbow axis      0.353553 m
+  lambda_3   L4 + L5            elbow axis -> end_effector       0.400000 m
+
+The manual defines THREE lambdas, not four. An earlier revision of our doc
+invented lambda_4 = L5; that notation does not exist in Quanser's figure. The
+numbers were always identical (0.25 + 0.15 = 0.40 either way), so correcting
+it changed no math - only the symbol names, which now match the manual.
+
+WHY lambda_3 CAN SPAN ACROSS JOINT 4:
+Figure 3's lambda_3 bracket runs from the elbow axis to the frame-4 origin,
+with the wrist-roll joint sitting partway along it at the L4/L5 boundary.
+Lumping a translation past a joint is legal in DH only because joint 4 rotates
+about the very axis it slides along - the wrist roll is collinear with the
+forearm, so L4 and L5 stay parallel no matter what q4 does, and Rz/Tz about a
+shared axis commute.
+
+That same collinearity is the reason q4 cannot change end-effector POSITION.
+One geometric fact, two consequences. It is also the property that lets IK
+split into "solve q1,q2,q3 for position" then "solve q4 for orientation".
+
+"Effective" means: the equivalent simple thing that produces identical motion.
+The upper arm is a bent casting, but kinematically it is indistinguishable
+from a straight 353.553 mm link permanently tilted 8.13 deg. DH has no
+"jog sideways" move, so the bend must be expressed as one straight length
+(lambda_2) plus one baked-in angle offset (beta inside theta_2).
+
+
+================================================================================
+        5. CORRECTED DH TABLE
+================================================================================
+
+Standard DH convention - the transform from frame i-1 to frame i is ALWAYS
+these four moves in this order, with no others permitted:
+
+    T_i = Rot(z, theta_i) * Trans(z, d_i) * Trans(x, a_i) * Rot(x, alpha_i)
+            rotate about z   slide along z  slide along x   twist about x
+
+There is no translate-along-y and no rotate-about-y. That ban is the source of
+every strange constant below.
+
+DERIVATION (not guessed). Because (L3, 0, L2) = lambda_2 * (sin b, 0, cos b):
+
+    T(L3, 0, L2) = Ry(beta) Tz(lambda_2) Ry(-beta)
+
+Substituting that into the URDF chain, the Ry(-beta) cancels the structural
+Ry(beta) immediately following it, and Rz/Tz about a common axis commute:
+
+    T = Rz(q1) Tz(lambda_1) Ry(q2+beta) Tz(lambda_2) Ry(q3) Tz(lambda_3) Rz(q4)
+
+Four joints acting on three effective lengths - the DH form:
+
+ i | theta_i           | d_i        | a_i        | alpha_i | meaning
+---+-------------------+------------+------------+---------+------------------
+ 1 | q1                | lambda_1   | 0          | -pi/2   | base roll
+   |                   | = 0.140000 |            |         | joint_1
+ 2 | q2 + beta - pi/2  | 0          | lambda_2   | 0       | shoulder pitch
+   |                   |            | = 0.353553 |         | KINK LIVES HERE
+ 3 | q3 + pi/2         | 0          | 0          | +pi/2   | elbow pitch
+   |                   |            |            |         | no beta - spent
+ 4 | q4                | lambda_3   | 0          | 0       | wrist roll
+   |                   | = 0.400000 |            |         |
+
+WHY THE alpha COLUMN IS WHAT IT IS - the single rule:
+  "z of frame i must point along joint i+1's axis."
+alpha exists for no other purpose. You do not choose it; you read it off the
+hardware.
+
+  joint 1 axis = Z, joint 2 axis = Y   -> perpendicular, need 90 deg twist.
+      Rx(-90) sends z -> +y;  Rx(+90) sends z -> -y.
+      Joint 2's axis points along +Y, so alpha_1 = -pi/2.
+      (The minus sign is what avoids a sign flip on q2.)
+  joint 2 axis = Y, joint 3 axis = Y   -> parallel, alpha_2 = 0.
+  joint 3 axis = Y, joint 4 = roll down the forearm -> alpha_3 = +pi/2.
+  nothing after joint 4               -> alpha_4 = 0.
+
+  alpha = (-pi/2, 0, +pi/2, 0)  <- a direct transcription of "roll pitch
+                                    pitch roll". Not a design choice.
+
+WHY theta_2 HAS THREE TERMS:
+    theta_2 = q2  +  beta  -  pi/2
+               |      |        |
+               |      |        +-- bookkeeping: DH only rotates about z, but
+               |      |            the shoulder physically pitches about y.
+               |      |            After alpha_1 twisted the frame, x no
+               |      |            longer points down the arm. This re-aims
+               |      |            it. The robot never moves through it.
+               |      +----------- PHYSICAL: the 8.13 deg structural bend.
+               |                   Rides inside theta forever because DH
+               |                   cannot express a sideways jog. Applied
+               |                   exactly ONCE, here.
+               +------------------ the real joint variable.
+
+theta_3 = q3 + pi/2 has no beta, because beta was already spent in row 2.
+Applying it again reintroduces the original bug.
+
+d VERSUS a - same length, different direction:
+  d slides along z = along the joint axis
+  a slides along x = perpendicular to it
+  Row 1 uses d: climbing L1 runs ALONG the base roll axis.
+  Row 2 uses a: the upper arm sticks out SIDEWAYS from the pitch axis.
+  Row 4 uses d: the tool runs ALONG the wrist roll axis - which is precisely
+                why q4 cannot move the gripper. Rotating about an axis and
+                then travelling along that same axis leaves you in the same
+                place.
+
+PROOF, not assertion: test_dh_matches_urdf_chain multiplies out the URDF
+origins directly and compares against this table over 200 random in-limit
+poses. Agreement within 1e-12.
+
+
+================================================================================
+        6. ZERO POSE
+================================================================================
+
+At q = [0, 0, 0, 0] the arm is dead straight and tilted by the structural kink:
+
+  end_effector  translation = [0.106569, 0.000000, 0.885980] m
+                rotation RPY = [0, 8.1301 deg, 0]
+  gripper_tip   translation = [0.113137, 0.000000, 0.931960] m
+
+Hand check (note L2 and L3 appear RAW, not as lambda_2 - that is the fix
+working, the elbow lands exactly on Table 2's numbers):
+
+  x = L3 + (L4+L5)*sin(beta) = 0.05 + 0.40*0.141421 = 0.106569   OK
+  z = L1 + L2 + (L4+L5)*cos(beta) = 0.49 + 0.40*0.989949 = 0.885980   OK
+
+SUPERSEDED: the old value [0.106, 0.000, 0.879] came from the double-counted
+URDF. The 7 mm z error is the lost effective upper arm projected vertically.
+
+The 8.13 deg pitch is correct in both: at the zero pose the only rotation left
+anywhere in the chain is beta.
+
+Three independent derivations agree on the new value: the solver's own test,
+the reviewer's hand substitution, and a separate hand computation.
+
+
+================================================================================
+        7. WHAT WAS BUILT
+================================================================================
+
+MODIFIED  src/qarm_description/urdf/qarm.urdf.xacro
+  - kink applied exactly once, all elbow geometry in joint_3's <origin>
+  - elbow_offset joint and link_elbow frame removed
+  - beta and all lambdas COMPUTED from L1..L5 via Xacro expressions, never
+    typed in, so a derived value cannot drift from the physical one
+  - added L_gripper = 0.046447 and the gripper_tip fixed frame
+  - end_effector unchanged (still the FK/IK target)
+
+MODIFIED  src/qarm_description/package.xml
+  - real description, license Apache-2.0, maintainer watimake
+
+MODIFIED  docs/kinematics.md   (+186 / -57 lines, then the lambda_3 correction)
+  - lambda definitions, the "L3 and beta are one feature" explanation
+  - DH table rewritten, derived from the chain and proven against it
+  - zero pose recomputed, old value marked superseded
+  - reach reconciliation with the matching-gap argument
+  - IK design section updated to name lambda_2 and lambda_3 explicitly
+
+NEW       src/qarm_kinematics/          (ament_python package)
+  robot_params.py        single source of truth. L1..L5 are the ONLY typed-in
+                         numbers; beta, lambdas, L_gripper, joint limits
+                         derived. Documents why the geometry is deliberately
+                         duplicated with the Xacro instead of parsed from it:
+                         parsing would hide bugs, since a wrong URDF would
+                         produce an equally wrong FK and the two would always
+                         agree. Independence is what makes the test meaningful.
+  forward_kinematics.py  dh_transform() helper, forward_kinematics(q),
+                         link_transforms(q), position/RPY extraction, input
+                         validation raising ValueError naming the bad joint,
+                         opt-out limit checking. Heavily commented for a DH
+                         beginner.
+  validate_fk_vs_tf.py   headless FK-vs-TF comparison, prints a PASS/FAIL table
+  test/                  test_forward_kinematics.py, test_fk_vs_tf.py,
+                         test_flake8.py, test_pep257.py
+
+MODIFIED  .gitignore
+  - added .agents/ so agent scratch space is never committed
+
+
+================================================================================
+        8. VERIFICATION EVIDENCE
+================================================================================
+
+colcon build .................... exit 0, 2 packages
+colcon test ..................... 28 tests, 0 errors, 0 failures, 0 skipped
+check_urdf ...................... valid tree, 4 DOF
+  base_link -> link_1 -> link_2 -> link_3 -> link_4 -> end_effector
+            -> gripper_tip
+FK vs TF tree ................... all 16 rows PASS, errors ~1e-16 m
+q4 invariance ................... FK spread 0.00e+00 m, TF spread 1.12e-16 m
+
+reach, measured from the live TF tree:
+  horizontal   end_effector 0.753553 m    gripper_tip 0.800000 m
+  vertical     end_effector 0.893553 m    gripper_tip 0.940000 m
+  manual quotes 0.800 m horizontal / 0.940 m vertical to the fingertip
+
+Both reproduce the manual EXACTLY. This is the check that proves the geometry
+fix is correct, not merely self-consistent.
+
+Test cases covered: all-zeros; each joint alone; all four nonzero; extended
+vertical; extended horizontal; q4 at -1.5/0/+1.5 rad; 5 seeded random poses.
+
+HOW TO RE-RUN:
+  cd ~/workspace/qarm
+  source /opt/ros/humble/setup.bash && source install/setup.bash
+  ros2 run qarm_kinematics qarm_fk 0 0 0 0        # pose from degrees
+  ros2 run qarm_kinematics qarm_validate_fk       # comparison table
+  colcon test --packages-select qarm_kinematics && colcon test-result --verbose
+
+
+================================================================================
+        9. OPEN ITEMS - carried into the next session
+================================================================================
+
+OPEN-1  KINK DIRECTION UNVERIFIED (highest risk)
+  No test can catch a MIRRORED kink. Every assertion in the suite stays true
+  if L3 and beta are flipped together. The direction follows our reading of
+  Figure 3, but it is unproven by execution. Must be confirmed by eye against
+  the figure, and on hardware when available.
+
+OPEN-2  JOINT LIMITS UNCONFIRMED
+  Current limits came from Quanser's product-page specifications table, stated
+  in QUANSER's joint convention:
+      joint_1  -170 .. +170 deg
+      joint_2   -85 ..  +85 deg
+      joint_3   -95 ..  +75 deg   <- asymmetric
+      joint_4  -160 .. +160 deg
+  Symmetric ranges transfer regardless of where zero sits. The asymmetric
+  elbow range assumes Quanser's elbow zero equals ours - our zero has the arm
+  tilted by beta, so it probably does not. IK filters candidate solutions by
+  these limits, so a wrong limit silently rejects valid poses.
+
+OPEN-3  build_urdf_string() PREFERS THE INSTALLED XACRO
+  It reads the installed share/ copy over the source tree, so editing the URDF
+  and running the validator WITHOUT colcon build first silently compares
+  against a stale model - the exact drift the guard exists to catch.
+
+OPEN-4  CI DOES NOT RUN TESTS
+  .github/workflows/ci.yaml runs only `colcon build`. The 28 tests are not
+  exercised on push. Add `colcon test` + `colcon test-result --verbose`.
+
+OPEN-5  NO COLLISION OR INERTIAL ELEMENTS
+  Links have <visual> only. Blocks Gazebo and ros2_control later. (Goal 4.)
+
+OPEN-6  NO GRIPPER MODELLED
+  gripper_tip is a bare frame. The real QArm has a gripper.
+
+Five further non-blocking review findings are in
+.agents/tasks/fk-geometry-fix/review.md (that directory is gitignored).
+
+
+================================================================================
+        10. LEARNING EXERCISE - do this before the next session
+================================================================================
+
+Build DH row 1 by hand. Multiply the four 4x4 matrices:
+
+    Rz(q1) * Tz(0.14) * Tx(0) * Rx(-pi/2)
+
+Confirm the result's third column - the new z axis - points along +y of the
+base. When that falls out of the arithmetic, alpha stops being a magic number
+and becomes "the twist that aims z at the shoulder". ~20 minutes.
+
+Check against the code:
+    python3 -c "from qarm_kinematics.forward_kinematics import dh_rows; \
+                print(dh_rows([0,0,0,0]))"
+
+Then watch the drift guard actually work: change L2 from 0.35 to 0.36 in
+robot_params.py, rebuild, run colcon test, watch it fail, then revert. That is
+the test catching exactly the class of bug that cost today's session.
+
+
+================================================================================
+================================================================================
+        PROMPT FOR THE NEXT AI ASSISTANT SESSION
+        Copy everything between the ==== markers into a new chat.
+================================================================================
+================================================================================
+
+SYSTEM CONTEXT & PERSONA
+
+Act as a Senior ROS 2 Robotics Software Engineer mentoring a beginner
+Mechatronics engineering student. I am building a custom ROS 2 control stack
+for a Quanser QArm (4-DOF roll-pitch-pitch-roll manipulator) during an 11-week
+co-op at the University of Waterloo. Explain concepts clearly and give exact
+terminal commands. I am learning Denavit-Hartenberg for the first time.
+
+HOW I WANT YOU TO WORK  (read this - the last session wasted my time)
+
+1. READ FIRST, ASK SECOND. Read day2_summary.txt (this file) and
+   docs/kinematics.md before proposing anything. Everything about the arm's
+   geometry is already resolved and documented there.
+2. DO NOT SEARCH THE WEB FOR THE QUANSER DATASHEET. I have the manual open.
+   If you need a value from Table 2 or Figure 3, ASK ME and I will send a
+   screenshot. The last session burned several minutes searching for a
+   document I was holding.
+3. ASK BEFORE EXPANDING SCOPE. Tell me what is strictly necessary versus what
+   is nice to have, and let me choose. Do not bundle extra packages, frames,
+   docs or refactors into a task I did not ask for.
+4. BE CONCISE. Short answers. No long preambles. I will ask for detail.
+5. TEACH AS YOU GO. When you write math, explain WHY each term exists, not
+   just what the code does. I need to defend this work in interviews - "an AI
+   generated it" is not an acceptable answer.
+6. VERIFY, DO NOT ASSERT. A clean build is not evidence. Show me real numbers
+   from real execution and compare them against the manual.
+
+ENVIRONMENT
+
+  Workspace:  ~/workspace/qarm   (WSL2 Ubuntu 22.04, ROS 2 Humble, NATIVE -
+              not Docker)
+  Windows:    \\wsl$\Ubuntu-22.04\home\watimake\workspace\qarm
+  Repo:       https://github.com/Cool-1-2-3-4-5/Q-Arm   (branch main)
+  IDE:        Kiro
+  Startup:    source /opt/ros/humble/setup.bash  (already in ~/.bashrc)
+              source install/setup.bash          (manual)
+  Headless:   assume NO reliable X11. Do not rely on RViz or
+              joint_state_publisher_gui for verification. Use robot_state_publisher
+              plus tf2_ros lookups in Python instead.
+  Docker:     installed but reserved for Week 11 containerization.
+
+CURRENT STATE
+
+  src/qarm_description/   URDF (geometry CORRECT and validated), launch, rviz
+  src/qarm_kinematics/    ament_python: robot_params.py, forward_kinematics.py,
+                          validate_fk_vs_tf.py, test/
+  docs/kinematics.md      authoritative kinematics reference - READ THIS
+  day2_summary.txt        this file
+
+  colcon build exit 0. colcon test 28/28 pass. check_urdf valid.
+  FK agrees with the TF tree to ~1e-16 m. Reach reproduces the manual's
+  0.800 m / 0.940 m exactly, measured to gripper_tip.
+
+  LANGUAGE DECISION ALREADY MADE: Python for kinematics (fast to get the math
+  right and test), C++ later for ros2_control. Do not propose rewriting
+  qarm_kinematics in C++.
+
+GEOMETRY FACTS - ALREADY RESOLVED, DO NOT RE-DERIVE
+
+  L1=0.14  L2=0.35  L3=0.05  L4=0.25  L5=0.15  beta=8.13 deg   (Table 2)
+  lambda_1 = L1                = 0.140000 m
+  lambda_2 = sqrt(L2^2 + L3^2) = 0.353553 m
+  lambda_3 = L4 + L5           = 0.400000 m
+  L_gripper = 0.046447 m  (gripper_tip beyond end_effector)
+
+  L3 and beta are TWO DESCRIPTIONS OF ONE FEATURE (the elbow kink). Applying
+  both double-counts it. That was the bug fixed on Day 2. Never reintroduce it.
+
+  DH table (proven against the URDF over 200 random poses, within 1e-12):
+    i=1:  theta=q1,              d=lambda_1,  a=0,         alpha=-pi/2
+    i=2:  theta=q2+beta-pi/2,    d=0,         a=lambda_2,  alpha=0
+    i=3:  theta=q3+pi/2,         d=0,         a=0,         alpha=+pi/2
+    i=4:  theta=q4,              d=lambda_3,  a=0,         alpha=0
+
+  Zero pose: end_effector at [0.106569, 0.000000, 0.885980] m, RPY
+  [0, 8.1301 deg, 0]. The old [0.106, 0, 0.879] is SUPERSEDED - do not use it.
+
+  q4 CANNOT change end-effector position. The wrist roll axis is collinear
+  with the forearm, and the DH row-4 translation is a d along that same axis.
+  Asserted in the test suite. IK depends on this.
+
+--------------------------------------------------------------------------------
+TASK FOR THIS SESSION - in this order
+--------------------------------------------------------------------------------
+
+STEP 0 - RESOLVE OPEN-2 BEFORE WRITING IK (blocking, ask me)
+
+  Joint limits are currently taken from Quanser's product page in THEIR zero
+  convention:
+      joint_1 -170..+170   joint_2 -85..+85   joint_3 -95..+75   joint_4 -160..+160
+  The asymmetric elbow range assumes Quanser's elbow zero equals ours. Our
+  zero has the arm tilted by beta, so it probably does not.
+
+  IK filters candidate solutions by these limits, so a wrong limit silently
+  rejects reachable poses. Ask me to check the manual for the joint range table
+  and how its zero is defined. Do NOT guess, and do NOT proceed to Step 2 with
+  unverified limits - flag it clearly if I cannot resolve it.
+
+STEP 1 - TWO SMALL FIXES (quick, do these first)
+
+  1a. OPEN-3: build_urdf_string() in validate_fk_vs_tf.py prefers the INSTALLED
+      xacro over the source tree, so editing the URDF without rebuilding
+      silently compares against a stale model - the exact drift the guard
+      exists to catch. Make it read the source tree, or fail loudly if the
+      installed copy is older than the source.
+
+  1b. OPEN-4: .github/workflows/ci.yaml runs only `colcon build`. Add
+      `colcon test` and `colcon test-result --verbose` so the 28 tests actually
+      run on push. Confirm the job would FAIL if a test fails.
+
+STEP 2 - IMPLEMENT ANALYTICAL INVERSE KINEMATICS (the main task)
+
+  Create qarm_kinematics/inverse_kinematics.py. Closed-form, NOT iterative.
+  Import all geometry from robot_params.py - do not re-declare any number.
+
+  The split (because q4 does not affect position):
+    (a) given target position p = (x, y, z) in base_link, solve q1, q2, q3
+    (b) given target orientation, solve q4
+
+  Suggested derivation:
+    - q1 = atan2(y, x)                   orients the arm's plane
+    - project the target into that plane: r = sqrt(x^2 + y^2), and work in
+      (r, z - lambda_1) relative to the shoulder axis
+    - what remains is a TWO-LINK PLANAR reach problem with link lengths
+      lambda_2 = 0.353553 and lambda_3 = 0.400000
+    - standard two-link cosine solution gives the elbow angle; beta folds into
+      q2 exactly as in DH row 2 (theta_2 = q2 + beta - pi/2), so remember to
+      SUBTRACT beta when converting back to the joint variable q2
+    - return BOTH elbow-up and elbow-down families
+
+  Requirements:
+    - return all valid solution branches, each filtered against joint limits
+    - a helper that picks the best branch: nearest to a supplied current pose
+      (shortest joint-space motion), with a documented tie-break
+    - explicit unreachable-target handling: too far, too close (inside the
+      inner workspace boundary), and out of joint range must each raise or
+      return a clearly distinguishable result - NOT a silent NaN
+    - q1 has a +/-pi ambiguity (reaching backwards with a flipped shoulder).
+      Decide whether to return that family too, and DOCUMENT the choice.
+    - comment the math for a DH beginner, as forward_kinematics.py does
+
+STEP 3 - VALIDATE IK  (this is the real deliverable, not the solver)
+
+  3a. ROUND TRIP: for a grid of in-limit q, assert IK(FK(q)) returns a branch
+      matching q within 1e-9. This is the single most important test.
+  3b. Assert every returned branch satisfies FK(branch) == target position.
+      A "solution" that does not reach the target is the main failure mode.
+  3c. Verify elbow-up and elbow-down both reach the SAME position with
+      different joint vectors.
+  3d. Test boundary cases: exactly at max reach (0.753553 m to end_effector),
+      just beyond it, straight overhead (the q1 singularity at x=y=0), and
+      targets inside the inner boundary.
+  3e. Add it to the pytest suite so colcon test covers it.
+  3f. Run it and SHOW ME the actual pass/fail table with real numbers.
+
+STEP 4 - MAKE IT USABLE FROM ROS 2
+
+  A node exposing IK as a service, plus a way to drive the arm to a target
+  pose so I can see it move in RViz. Propose the service type before writing
+  it - prefer an existing standard message over a custom one, and tell me
+  which you chose and why.
+
+--------------------------------------------------------------------------------
+OUT OF SCOPE THIS SESSION  (do not start without asking)
+--------------------------------------------------------------------------------
+  - trajectory planning / time parameterization
+  - collision geometry and inertial elements (goal 4)
+  - ros2_control hardware interface (goal 5, and it will be C++)
+  - Dockerization (Week 11)
+  - any rewrite of forward_kinematics.py or the URDF geometry
+
+--------------------------------------------------------------------------------
+DEFINITION OF DONE
+--------------------------------------------------------------------------------
+  - colcon build exit 0
+  - colcon test passes, including the new IK round-trip tests
+  - the IK validation table printed with real numbers, all PASS
+  - docs/kinematics.md section 9 replaced with the ACTUAL derivation used,
+    including the branch-selection rule and the unreachable-target behaviour
+  - one clean commit on main
+  - DO NOT git push. I review and push myself.
+
+FIRST THING TO DO: read day2_summary.txt and docs/kinematics.md, then ask me
+about the joint limits in STEP 0. Do not write any code before that is settled.
+
+================================================================================
+                              END OF PROMPT
+================================================================================
