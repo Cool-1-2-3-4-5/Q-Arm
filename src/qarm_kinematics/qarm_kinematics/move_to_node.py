@@ -131,6 +131,7 @@ class MoveToPoint(Node):
 
     def _tick(self):
         """Step every joint toward the goal and publish where the arm is."""
+        arrived = False
         if self._moving:
             remaining = 0.0
             for i, goal in enumerate(self._goal):
@@ -145,17 +146,25 @@ class MoveToPoint(Node):
                 remaining = max(remaining, abs(goal - self._position[i]))
             if remaining == 0.0:
                 self._moving = False
-                reached = frame_position(self._position, self._frame)
-                self.get_logger().info(
-                    'arrived: {} at ({:.6f}, {:.6f}, {:.6f}) m'.format(
-                        self._frame, *reached))
-                self._done.publish(Bool(data=True))
+                arrived = True
 
+        # ORDER MATTERS: the joint state carrying the final positions must go
+        # out BEFORE the done flag, or a listener that wakes on done and reads
+        # TF sees the second-to-last pose. Even so, done only means "the final
+        # joint state has been sent" - robot_state_publisher still has to
+        # receive it and republish TF, so a consumer must let TF settle rather
+        # than assume it is current the instant done arrives.
         state = JointState()
         state.header.stamp = self.get_clock().now().to_msg()
         state.name = list(JOINT_NAMES)
         state.position = list(self._position)
         self._states.publish(state)
+
+        if arrived:
+            reached = frame_position(self._position, self._frame)
+            self.get_logger().info('arrived: {} at ({:.6f}, {:.6f}, {:.6f}) m'.format(
+                self._frame, *reached))
+            self._done.publish(Bool(data=True))
 
 
 def main(args=None):

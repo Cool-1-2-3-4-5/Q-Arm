@@ -890,16 +890,32 @@ ever needed, the IK itself is a plain function call.
 (Day 2's prompt asked for a service and said to propose the type first and
 prefer a standard message. This is that proposal, with the reasoning.)
 
-16.2  TWO PUBLISHERS, ONE TOPIC - a neat result
+16.2  TWO PUBLISHERS, ONE TOPIC - and the remap it needs
 
 qarm_move_to owns the four arm joints; qarm_gripper owns the two finger
 joints; both publish to /joint_states. robot_state_publisher keeps the state
 of every joint it has SEEN, updating only the names present in each message,
-so two publishers owning disjoint joints works with no coordination.
+so two publishers owning disjoint joints works with no coordination between
+them.
 
 Consequences: no joint_state_publisher is needed at all in this launch file,
 and nothing fights the IK for control of the arm joints - which the slider GUI
 would, since it republishes every joint continuously.
+
+**BUT IT NEEDS ONE REMAP, which the first version of the launch file was
+missing.** qarm_gripper publishes to gripper/joint_states, NOT joint_states,
+because display.launch.py feeds that topic into joint_state_publisher_gui's
+source_list. move_to.launch.py has no joint_state_publisher, so nothing merged
+it: the finger joints never reached robot_state_publisher and the finger
+frames never appeared in TF at all. Found by the end-to-end probe, which
+failed with
+
+    tf2.LookupException: "finger_left" passed to lookupTransform argument
+    source_frame does not exist.
+
+Fixed with remappings=[('gripper/joint_states', 'joint_states')] on the
+gripper node. The claim above is true; it just was not true of the code until
+the probe said so. See challenge 20.
 
 16.3  Behaviour details
 
@@ -1025,6 +1041,40 @@ CHALLENGE 17 - pkill matched its own shell
   class so the pattern does not match literally, `grep -E '[p]attern'`, or
   kill by PID.
 
+CHALLENGE 19 - "done" was published before the final joint state
+  The end-to-end probe reported the arm 2-5 degrees short on every move, while
+  the node's own log said "arrived" at the exact target. Both were right.
+
+  The diagnosis came from the PATTERN of the error, which is worth copying as
+  a technique. In every row z matched to 1e-5 AND the horizontal radius
+  sqrt(x^2+y^2) matched exactly - only the base ANGLE was off. q1 is the one
+  joint that changes neither height nor radius, so the error had to be in q1
+  alone. It is also the joint with the furthest to travel in those moves, so
+  the last to finish. That pinned it to timing, not geometry:
+
+      requested (0.30000, 0.20000, 0.50000)   angle 33.69 deg
+      TF read   (0.31034, 0.18354, 0.50000)   angle 30.58 deg   radius both
+                                                                0.36056 m
+
+  Cause: _tick() published done=True BEFORE publishing the JointState holding
+  the final positions, so a listener that woke on done and read TF got the
+  second-to-last pose. Fixed by publishing the joint state first.
+
+  Note that this does NOT fully fix it for consumers: done can only ever mean
+  "the final joint state has been sent". robot_state_publisher still has to
+  receive it and republish TF. So the probe now also waits for TF to STOP
+  CHANGING before reading, and the node's docstring says why. Any future
+  sequencer must do the same rather than trusting TF the instant done arrives.
+
+CHALLENGE 20 - the gripper's joints never reached robot_state_publisher
+  Section 16.2. The probe died on
+      tf2.LookupException: "finger_left" ... does not exist
+  because qarm_gripper publishes to gripper/joint_states and move_to.launch.py
+  had neither a joint_state_publisher to merge it nor a remap. One line fixed
+  it. Worth noting that I had already WRITTEN the two-publisher design up as
+  working before any of it had run - the probe is the only reason it is true
+  now.
+
 CHALLENGE 18 - the shell died completely
   Partway through the final round, `execute_pwsh` stopped executing anything:
   no output, no log file created, repeatedly. File reads and writes over the
@@ -1087,13 +1137,40 @@ CHALLENGE 18 - the shell died completely
     0.45 0 0.49 home            all four joints 0.000 deg - the home pose
                                 round trip
 
-18.3  NOT VERIFIED
+18.3  move_to, end to end - the run that found challenges 19 and 20
 
-  - qarm_move_to and its launch file: written and reviewed, NEVER BUILT OR RUN.
-    The end-to-end probe (.agents/day3/probe_move.py) exists but never
-    executed. Treat as unproven.
-  - The D301 fix, the snap fix (challenge 8) and the ParameterValue fix
-    (challenge 9): applied after the shell died, so unbuilt.
+Run by the student after the shell died. 45 tests passed, IK 15/15 passed,
+and the node moved the arm correctly every time - its own log:
+
+    target (0.3000, 0.2000, 0.5000) -> facing elbow-up,
+      q = [33.69, -14.52, 13.28, 0.00] deg, largest joint move 33.7 deg,
+      about 0.4 s
+    arrived: end_effector at (0.300000, 0.200000, 0.500000) m
+    arrived: end_effector at (0.450000, 0.000000, 0.490000) m
+    arrived: end_effector at (-0.000000, -0.000000, 0.600000) m
+    arrived: end_effector at (-0.350000, 0.150000, 0.300000) m
+
+  Also correct on that run:
+    unreachable (0.9, 0, 0.5)   done=False, arm moved 0.00e+00 m
+    wrong frame_id              done=False
+    the floating-point snap fix (challenge 8) worked - done fired at all,
+      which it would not have before
+    the 156.8 deg move to (-0.35, 0.15, 0.30) took 1.7 s, matching the
+      predicted time at the rated speed
+
+  And it FAILED on two things, both real and both now fixed: the TF read race
+  (challenge 19) and the missing gripper remap (challenge 20). THE PROBE
+  EARNED ITS KEEP: neither defect is reachable by a unit test, because both
+  live in the gap between processes.
+
+18.4  STILL NOT VERIFIED
+
+  - The fixes for challenges 19 and 20, and the D301 fix (challenge 11):
+    applied after the shell died, so written and reviewed but NOT RUN.
+    Re-running .agents/day3/finish.sh is what confirms them.
+  - The gripper check at the end of the probe never ran at all, because the
+    exception aborted the script before it. So the two-publisher design is
+    still unproven in practice even with the remap in place.
   - RViz appearance: no display was available. Needs a human to look at it.
   - The GitHub Actions run itself: never observed, because the push with
     ci.yaml was rejected.

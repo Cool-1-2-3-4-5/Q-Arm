@@ -65,6 +65,12 @@ def generate_launch_description():
             package='qarm_description',
             executable='qarm_gripper',
             output='screen',
+            # qarm_gripper publishes to gripper/joint_states, because
+            # display.launch.py feeds that into joint_state_publisher_gui's
+            # source_list. There is no joint_state_publisher here, so without
+            # this remap the finger joints never reach
+            # robot_state_publisher and the finger frames never appear in TF.
+            remappings=[('gripper/joint_states', 'joint_states')],
         ),
         Node(
             package='rviz2',
