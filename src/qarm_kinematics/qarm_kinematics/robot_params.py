@@ -170,6 +170,12 @@ JOINT_LIMITS = (
 
 NUM_JOINTS = len(JOINT_NAMES)
 
+# Maximum joint speed, radians per second. Quanser QArm user manual, Table 7
+# ("Max. speed"), which gives pi/2 rad/s for all four joints. Matches vel_max
+# in the Xacro. All four being equal is what makes "shortest move" in the IK
+# solver the smallest max |dq| rather than the smallest sum.
+MAX_JOINT_SPEED = math.pi / 2.0
+
 # TF frames of interest.
 BASE_FRAME = 'base_link'
 EE_FRAME = 'end_effector'        # the FK/IK target

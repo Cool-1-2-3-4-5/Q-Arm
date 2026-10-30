@@ -1,0 +1,427 @@
+================================================================================
+        QARM ROS 2 CONTROL STACK - DAY 4 SUMMARY
+        Inverse kinematics, CI gating, move-to-point node
+        (same calendar day as Day 3; separate file because this is goal 3)
+================================================================================
+
+Date:        2026-10-30
+Developer:   Mechatronics Engineering Co-op Student, University of Waterloo
+Repository:  https://github.com/Cool-1-2-3-4-5/Q-Arm   (branch main)
+Hardware:    physical QArm arrives in ~4 days
+
+Goal status (the 9-step list):
+  1. URDF with real QArm dimensions ............ DONE
+  2. Forward kinematics ........................ DONE (hardware checks pending)
+  3. Inverse kinematics ........................ DONE and validated  <-- today
+  4. Collision and inertial geometry ........... not started
+  5. ros2_control (C++ hardware interface) ..... not started
+  6. Trajectory planning ....................... not started
+  7. Connect to the physical arm ............... waiting on hardware
+  8. Docker .................................... Week 11
+  9. CI that runs the tests .................... DONE  <-- today
+  Extra: qarm_move_to node, so a target point actually drives the arm.
+
+
+================================================================================
+        1. DECISIONS TAKEN (student's answers, recorded)
+================================================================================
+
+  1. Return the BACKWARD family as well as the facing one.
+  2. Tie-break goes to ELBOW UP.
+  3. Target on the base axis: keep the CURRENT base angle (do not spin).
+  4. Wrist: 'N/A' keeps the current angle, 'home' = 0, or an actual angle
+     0-360 degrees measured CLOCKWISE.
+  5. IK targets end_effector (with --tip available for the fingertips).
+  6. Fix OPEN-3 alongside the CI work.
+  7. Commit and push.
+
+  Assumption still to confirm on hardware: "clockwise" is taken as seen from
+  BEHIND the wrist looking out toward the fingertips. One constant,
+  WRIST_CLOCKWISE_SIGN in inverse_kinematics.py, flips it if that is wrong.
+
+
+================================================================================
+        2. STEP 9 - CI NOW RUNS THE TESTS (OPEN-4 closed)
+================================================================================
+
+.github/workflows/ci.yaml previously ran only `colcon build`, so all 45 tests
+were dead weight on every push.
+
+Now: rosdep install (so the job uses what package.xml declares rather than
+whatever the base image ships), then `colcon test`, then
+`colcon test-result --verbose`.
+
+THE SUBTLE PART: `colcon test` exits 0 EVEN WHEN TESTS FAIL. It reports that it
+successfully ran the tests, not that they passed. `colcon test-result` is the
+command that exits non-zero. Without it the job would have been green forever.
+
+Proof it gates (run locally):
+    edit L2 0.35 -> 0.36 in the source Xacro, do NOT rebuild
+      -> colcon test-result exit code 1, 2 failures
+    revert
+      -> exit code 0, 0 failures
+
+
+================================================================================
+        3. OPEN-3 CLOSED - the drift guard was reading the wrong file
+================================================================================
+
+build_urdf_string() in validate_fk_vs_tf.py resolved the Xacro from the
+INSTALLED share directory first. A plain `colcon build` COPIES the Xacro into
+install/, so editing src/.../qarm.urdf.xacro and running the tests without
+rebuilding compared FK against the previous model - precisely the drift the
+test exists to catch. It would pass while the model and the FK disagreed.
+
+Fixed: new xacro_path() prefers, in order, (1) the source tree next to the
+module, (2) <workspace>/src/... located from the install prefix, (3) the
+installed share directory as a last resort. The comparison table now PRINTS
+which file it used, so this can never be ambiguous again.
+
+The same L2 0.35 -> 0.36 edit above is the proof: before the fix that edit was
+invisible to the test; now it fails the suite.
+
+
+================================================================================
+        4. STEP 3 - INVERSE KINEMATICS
+================================================================================
+
+NEW  src/qarm_kinematics/qarm_kinematics/inverse_kinematics.py
+NEW  src/qarm_kinematics/qarm_kinematics/validate_ik.py
+NEW  src/qarm_kinematics/test/test_inverse_kinematics.py
+
+Closed form, no iteration. Every length and limit imported from
+robot_params.py; no number re-typed.
+
+THE SPLIT. q4 rolls about the forearm axis and end_effector sits on that axis,
+so q4 cannot move the end effector (already asserted in the FK tests).
+Position therefore depends on q1, q2, q3 only, and the wrist passes through.
+
+STEP 1   q1 = atan2(y, x) turns the arm's plane to face the target.
+         r = sqrt(x^2+y^2), h = z - lambda_1, and the rest is 2D.
+STEP 2   Two-link planar solve. The law of cosines on the
+         shoulder-elbow-target triangle gives the bend:
+             cos(gamma) = (D^2 - lambda_2^2 - lambda_3^2)/(2 lambda_2 lambda_3)
+         so gamma = +acos or -acos: the elbow sits either side of the
+         shoulder-target line. Then
+             phi_2 = atan2(r,h)
+                     - atan2(lambda_3 sin gamma, lambda_2 + lambda_3 cos gamma)
+STEP 3   q2 = phi_2 - beta              (undo the kink, DH row 2)
+         q3 = gamma + ELBOW_STRAIGHT    (bend-from-straight -> joint angle,
+                                         DH row 3)
+
+FOUR CANDIDATES, TWO ARM SHAPES - the insight worth being able to explain.
+The base can also turn the other way (q1 + 180 deg) and the arm lean back;
+in the plane that is r = -sqrt(x^2+y^2). Two families x two bends = four
+candidates. They are NOT four shapes. Because the shoulder sits ON the base
+axis, atan2(-r,h) = -atan2(r,h), so
+
+    facing(+gamma)  ==  backward(-gamma)      one physical arm shape
+    facing(-gamma)  ==  backward(+gamma)      the other
+
+Same world elbow position, same tool position, different joint numbers. Which
+WRITING is legal is decided by the joint limits, and usually only one is. The
+elbow only reaches 13.13 deg past straight in the negative direction
+(q3 >= -95 deg, straight = -81.87 deg), so the facing family is nearly always
+elbow-up only. THE BACKWARD FAMILY IS HOW THE ARM REACHES THE SECOND SHAPE AT
+ALL - it is half the workspace, not a curiosity.
+
+Worked example, target (0.3, 0.2, 0.5) m:
+    reach      elbow     q1..q4 [deg]                         limits
+    facing     up          33.690  -14.521   13.282    0.000  ok
+    facing     down        33.690   88.349 -177.022    0.000  out: joint_2, joint_3
+    backward   down      -146.310 -104.609   13.282    0.000  out: joint_2
+    backward   up        -146.310   -1.740 -177.022    0.000  out: joint_3
+
+CHOOSING ONE. solve() keeps the in-limit candidates and returns the shortest
+move from the current pose. All four joints share ONE speed limit (pi/2 rad/s,
+Table 7), so move time is set by the joint with the furthest to go: the cost is
+max |dq|, NOT the sum. Ties within 1e-9 rad go to elbow up, then facing.
+
+THE ONE SINGULARITY. x = y = 0 puts the target on the base axis; atan2(0,0) has
+no answer and every base angle reaches it, because the arm just spins about the
+target. The solver keeps the current base angle there.
+
+UNREACHABLE TARGETS - never a silent NaN:
+    TargetTooFarError     D > lambda_2 + lambda_3 = 0.753553 m
+    TargetTooCloseError   D < |lambda_3 - lambda_2| = 0.046447 m  (dead zone)
+    JointLimitError       geometry fine, every candidate breaks a limit;
+                          carries .candidates and .violations
+All three subclass IKError, itself a ValueError.
+
+NOT handled: collisions with the table, the base or the arm itself. There is no
+collision model yet (goal 4), so a returned solution can still be a pose you
+would not want to command on hardware.
+
+
+================================================================================
+        5. STEP 3 VALIDATION - the real deliverable
+================================================================================
+
+Each check in validate_ik.py is ALSO a pytest case, so the printed table and
+the test suite cannot disagree.
+
+The important one is the ROUND TRIP: for known joint angles q, IK(FK(q)) must
+return q. It trusts no IK formula - only FK, which is already validated against
+the URDF and the live TF tree.
+
+  round trip, 250-pose grid     PASS  250/250, worst 6.2e-15 rad
+  round trip, 984 random        PASS  worst 2.2e-14 rad
+  every solution on target      PASS  1751 solutions / 1000 targets,
+                                      worst miss 4.7e-16 m
+  only in-limit solutions       PASS  0 out-of-limit returned in 1000 targets
+  elbow up and down             PASS  both within 2.5e-16 m, joints differ 180 deg
+  behind the base               PASS  backward family only, 6.7e-16 rad
+  exactly at max reach          PASS  elbow 'straight', 3.3e-17 rad
+  vertical max reach            PASS  base angle kept, miss 3.1e-17 m
+  just beyond reach             PASS  TargetTooFarError
+  straight overhead             PASS  base angle kept
+  too close                     PASS  TargetTooCloseError
+  out of joint range            PASS  JointLimitError
+  gripper_tip frame             PASS  worst miss 4.8e-16 m
+  wrist commands                PASS  all conversions, 180 deg and '400' rejected
+  shortest move, tie-break      PASS  nearest picked, tie -> elbow up
+
+  RESULT: all 15 checks PASS.   colcon test: 45 tests, 0 failures.
+
+Known numerical limit, not a bug: at full stretch the tool position barely
+depends on the bend, so the random round trip skips poses within 1 degree of
+straight. Positions are exact there; the joint angles are simply not uniquely
+recoverable. That is a property of the arm, and it is why the solver decides
+"straight" on cos(gamma) rather than on gamma - acos is so steep near 1 that
+1e-16 of rounding becomes 1e-8 rad and would split one straight arm into two
+bent ones.
+
+
+================================================================================
+        6. EXTRA - qarm_move_to, so the maths actually moves the arm
+================================================================================
+
+NEW  src/qarm_kinematics/qarm_kinematics/move_to_node.py
+NEW  src/qarm_kinematics/launch/move_to.launch.py
+     robot_params.py gains MAX_JOINT_SPEED (pi/2 rad/s, Table 7)
+
+    ros2 launch qarm_kinematics move_to.launch.py rviz:=true
+    ros2 topic pub --once /target_point geometry_msgs/msg/PointStamped \
+        "{header: {frame_id: base_link}, point: {x: 0.3, y: 0.2, z: 0.5}}"
+
+Subscribes geometry_msgs/PointStamped on target_point, solves IK from the arm's
+CURRENT pose, walks every joint to the answer at the rated speed, publishes
+sensor_msgs/JointState on joint_states. Outcome goes to the log and to
+move_to/done (Bool), enough to chain moves later.
+
+WHY A TOPIC, NOT A CUSTOM SERVICE: PointStamped already means "a point in a
+named frame", which is the whole input. A custom service would add a message
+package and a bespoke type for no new information, and a topic lets a future
+sequencer publish without blocking. `ros2 topic pub` is enough to drive it by
+hand. If a real request/response is ever wanted, the IK is a plain function.
+
+TWO PUBLISHERS, ONE TOPIC: qarm_move_to owns the four arm joints and
+qarm_gripper owns the two finger joints, both publishing to joint_states.
+robot_state_publisher keeps the state of every joint it has SEEN, so this needs
+no joint_state_publisher at all - and nothing fights the IK for control of the
+arm joints, which the slider GUI would.
+
+Targets stamped in a frame other than base_link are refused, not silently
+assumed.
+
+LIMITATION, documented in the module: it interpolates in JOINT space, so the
+gripper's path between two points is a curve, not a straight line. Fine for
+"go there", wrong for "draw a straight edge" - Cartesian paths need trajectory
+generation (goal 6).
+
+
+================================================================================
+        7. THE BIG FINDING - Section B's reach is probably a manual slip
+================================================================================
+
+Day 2 concluded that the manual's Section B reach (0.800 / 0.940 m) is measured
+to the FINGERTIPS, 46.4 mm past end_effector, and the argument was: the
+shortfall against our chain is IDENTICAL in both directions, and a wrong link
+length would project differently into horizontal and vertical, so it can only
+be a constant length at the tip.
+
+Checking the arithmetic exactly today:
+
+    lambda_2            = 0.3535533906
+    lambda_3            = 0.4000000000
+    lambda_2 + lambda_3 = 0.7535533906   <- Section D 0.7536   (our model)
+    2 * lambda_3        = 0.8000000000   <- Section B 0.800    EXACTLY
+    L1 + 2 * lambda_3   = 0.9400000000   <- Section B 0.940    EXACTLY
+    lambda_3 - lambda_2 = 0.0464466094
+    the 46.4 mm residual= 0.0464466094   <- identical to 7 decimals
+
+So there are TWO hypotheses, not one:
+
+  H1 (Day 2)  Section B = lambda_2 + lambda_3 + L_gripper, to the fingertips.
+              Requires the real gripper to be 46.4466 mm long.
+  H2 (new)    Section B = lambda_3 + lambda_3, i.e. lambda_2 mistakenly
+              replaced by lambda_3. Forces the residual to be exactly
+              lambda_3 - lambda_2, which is what we observe.
+
+**BOTH PREDICT THE SAME SHORTFALL IN BOTH DIRECTIONS**, because both reach
+figures are built from the same lambda sum. So Day 2's argument CANNOT tell
+them apart. What it does still rule out is a wrong L1..L5 - and Section D
+confirms those directly, which is the stronger evidence anyway.
+
+H2 additionally explains why the residual lands on lambda_3 - lambda_2 to seven
+decimals. Under H1 that is a coincidence.
+
+NOTHING IN THE MODEL CHANGED. end_effector is untouched and still the FK/IK
+target. L_gripper and gripper_tip are kept so Section B stays reproducible, but
+L_gripper is now documented as UNVERIFIED rather than as a measured dimension.
+
+ONE MEASUREMENT SETTLES IT on hardware: palm face (end of L5) to fingertips.
+    ~46.4 mm            -> H1, L_gripper is real, keep it.
+    clearly different   -> H2, Section B is an arithmetic slip. Set L_gripper
+                           to the measured value (gripper_tip then stops
+                           reproducing Section B, which is the CORRECT
+                           outcome) and treat Section D as authoritative.
+
+Also a coincidence worth not tripping over: the IK dead-zone radius is
+|lambda_3 - lambda_2| = 0.046447 m, the same number as L_gripper. They are
+unrelated quantities that happen to share a value.
+
+
+================================================================================
+        8. CHALLENGES ENCOUNTERED
+================================================================================
+
+CHALLENGE 1 - colcon test does not fail on test failures
+  See section 2. `colcon test` exits 0 regardless; `colcon test-result` is the
+  gate. Getting this wrong gives a permanently green CI badge.
+
+CHALLENGE 2 - the drift guard read the installed, not the source, Xacro
+  See section 3.
+
+CHALLENGE 3 - labelling the four IK candidates
+  First attempt labelled elbow up/down from the sign of gamma, which is
+  meaningless across the two families because the planar r-axis flips. Settled
+  on the ELBOW'S WORLD HEIGHT, which is physical and therefore identical for
+  the two writings of one arm shape - so the labels stay consistent.
+
+CHALLENGE 4 - acos near full stretch
+  At full reach, 1e-16 of rounding in cos(gamma) becomes ~1e-8 rad in
+  gamma = acos(...), which split the single straight-arm solution into two
+  bent ones and broke the exact-max-reach check. Fixed by testing
+  1 - cos(gamma) < 1e-12 instead of gamma < eps.
+
+CHALLENGE 5 - pep257 D401, imperative mood
+  Two validate_ik.py docstrings started with "A target ..." and failed the
+  suite. Rewritten as "Reach exactly full stretch: ..." / "Reach behind the
+  base: ...". The linter wants the summary line to be a command.
+
+CHALLENGE 6 - pep257 D301, backslashes in docstrings
+  Both new files used a `\` line continuation in a usage example. pydocstyle
+  requires r""" for ANY docstring containing a backslash. Fixed by making
+  those two module docstrings raw strings.
+
+CHALLENGE 7 - GitHub rejected the push (not a code problem)
+    ! [remote rejected] main -> main (refusing to allow a Personal Access
+      Token to create or update workflow `.github/workflows/ci.yaml`
+      without `workflow` scope)
+  A PAT needs the separate `workflow` scope to touch anything under
+  .github/workflows/. Worked around by putting ci.yaml in its own commit and
+  pushing everything before it; see section 9.
+
+CHALLENGE 8 - a + (b - a) is not always b
+  move_to's interpolator added the remaining error to the joint position on the
+  last tick. In floating point that does not land exactly on the goal, so
+  "arrived" would never fire and move_to/done would never publish true. Fixed
+  by SNAPPING to the goal when the remaining error is within one tick.
+  Found by inspection, not by the tests.
+
+CHALLENGE 9 - launch arguments are strings
+  parameters=[{'speed_scale': LaunchConfiguration('speed_scale')}] passes the
+  STRING '0.5' to a parameter the node declared with a float default, which the
+  parameter server rejects on type. Fixed with
+  ParameterValue(..., value_type=float). Also found by inspection.
+
+CHALLENGE 10 - tooling
+  The Windows-to-WSL shell stopped returning output partway through the session
+  and then stopped executing at all, so the last round of changes (the D301
+  fix, challenges 8 and 9) is reviewed but NOT yet built or tested. See
+  section 9 for the one command that finishes it.
+  Earlier in the session the same shell also needed every command's output
+  redirected to a log file and read back, and a `ros2 launch` started in the
+  background of a script ignores Ctrl+C, so it has to be killed by process
+  group (`setsid` + `kill -TERM -- -$PGID`).
+
+
+================================================================================
+        9. STATE OF THE REPO, AND HOW TO FINISH
+================================================================================
+
+PUSHED to origin/main earlier today:
+    63d3b9c  docs: add Day 3/4 summary
+    a22c2de  feat: adopt Quanser home-pose zero, add gripper model and toggle
+
+COMMITTED LOCALLY BUT NOT PUSHED:
+    34fe46a  feat: analytical inverse kinematics; CI runs tests; ...
+             (IK, docs, OPEN-3 fix AND ci.yaml - the push was rejected
+              because of the PAT scope, challenge 7)
+
+NOT YET COMMITTED (reviewed, not yet built or tested - challenge 10):
+    move_to_node.py, launch/move_to.launch.py, robot_params.py
+    (MAX_JOINT_SPEED), setup.py, package.xml, day4_summary.txt
+    and the D301 / snap / ParameterValue fixes
+
+TO FINISH, run ONE command in WSL:
+
+    cd ~/workspace/qarm && bash .agents/day3/finish.sh
+
+It builds, runs the whole suite, exercises move_to end-to-end headlessly
+(five target points checked against the TF tree, plus an unreachable target, a
+wrong frame_id and the gripper), and ONLY IF ALL OF THAT PASSES does it split
+34fe46a into
+
+    1. feat: analytical inverse kinematics ...     (pushed)
+    2. feat: qarm_move_to node ...                 (pushed)
+    3. docs: add Day 4 summary                     (pushed)
+    4. ci: run the tests, not just the build       (LOCAL ONLY)
+
+and push 1-3. If anything fails it prints the exact linter codes and commits
+nothing.
+
+THEN, to get the CI change onto GitHub, do ONE of:
+  (a) add the `workflow` scope to the token:
+      GitHub -> Settings -> Developer settings -> Personal access tokens ->
+      edit the token -> tick `workflow` -> update. Then: git push origin main
+  (b) paste .github/workflows/ci.yaml into the GitHub web editor by hand.
+  (c) leave it; the tests still run locally and the commit waits.
+
+
+================================================================================
+        10. HARDWARE-DAY CHECKLIST (arm arrives in ~4 days)
+================================================================================
+
+  [ ] Figure 4b home configuration: all four joints should read ~0.
+  [ ] Positive shoulder tips the arm toward the kink side.
+  [ ] Positive elbow swings the forearm down toward the table.
+  [ ] Base and wrist: note which way positive turns. If the wrist turns
+      counter-clockwise seen from behind, flip WRIST_CLOCKWISE_SIGN.
+  [ ] MEASURE palm face to fingertips. This settles H1 vs H2 in section 7.
+  [ ] Gripper 0 % / 100 %: which is open, which is closed.
+
+
+================================================================================
+        11. NEXT STEPS
+================================================================================
+
+  Goal 4, collision and inertial geometry, is the natural next one: it unblocks
+  Gazebo and ros2_control, and it is what would let IK solutions be checked for
+  "would this hit the table" rather than only "is this in joint range".
+
+  Goal 6, trajectory planning, is what turns move_to's joint-space curve into a
+  controlled Cartesian path.
+
+  Either is a bigger piece than today's. Worth doing first, and small:
+    - the Xacro still names lambda_3 = L4 and lambda_4 = L5 (old notation;
+      the docs and robot_params.py use the manual's lambda_3 = L4 + L5)
+    - end_effector's yellow roll-indicator bar now overlaps the palm and the
+      left finger (cosmetic)
+    - validate_fk_vs_tf.py still sets ROS_DOMAIN_ID and never restores it,
+      and its test_poses() name can be collected by pytest as a test
+    - DH frame 4's x axis points opposite the manual's x4 in Figure 3
+      (a frame choice, not a position error; check against the wrist zero)
+
+================================================================================

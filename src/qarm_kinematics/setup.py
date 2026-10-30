@@ -10,6 +10,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', ['launch/move_to.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -32,6 +33,9 @@ setup(
             # IK PASS/FAIL validation table (see validate_ik.py).
             #   ros2 run qarm_kinematics qarm_validate_ik
             'qarm_validate_ik = qarm_kinematics.validate_ik:main',
+            # Drive the arm to a target point via IK (see move_to_node.py).
+            #   ros2 launch qarm_kinematics move_to.launch.py
+            'qarm_move_to = qarm_kinematics.move_to_node:main',
         ],
     },
 )

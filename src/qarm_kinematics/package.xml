@@ -4,10 +4,11 @@
   <name>qarm_kinematics</name>
   <version>0.0.0</version>
   <description>
-    Forward kinematics for the Quanser QArm, written in Python with numpy.
-    Holds the single source of truth for the Denavit-Hartenberg parameters and a
-    headless test that validates the FK against the TF tree published by
-    robot_state_publisher from qarm_description's URDF.
+    Forward and inverse kinematics for the Quanser QArm, written in Python with
+    numpy. Holds the single source of truth for the Denavit-Hartenberg
+    parameters, a closed-form IK solver, a node that drives the arm to a target
+    point, and headless tests that validate the FK against the TF tree
+    published by robot_state_publisher from qarm_description's URDF.
   </description>
   <maintainer email="elilgrade8@gmail.com">watimake</maintainer>
   <license>Apache-2.0</license>
@@ -15,6 +16,10 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>xacro</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
