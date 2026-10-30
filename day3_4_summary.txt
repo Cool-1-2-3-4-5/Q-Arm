@@ -1,0 +1,322 @@
+================================================================================
+        QARM ROS 2 CONTROL STACK - DAY 3/4 SUMMARY
+        Manual cross-check, elbow zero convention, gripper model + toggle
+================================================================================
+
+Date:        2026-10-30
+Developer:   Mechatronics Engineering Co-op Student, University of Waterloo
+Repository:  https://github.com/Cool-1-2-3-4-5/Q-Arm   (branch main)
+Hardware:    physical QArm arrives in ~4 days (around 2026-11-03)
+
+Goal status (original 5-goal priority list):
+  1. URDF with real QArm dimensions ............ DONE, now cross-checked against
+                                                 the manual's own reach numbers
+  2. Forward kinematics ........................ DONE, zero convention now
+                                                 matches Quanser's home pose
+  3. Inverse kinematics ........................ NEXT (joint limits unblocked)
+  4. Collision geometry ........................ not started
+  5. ros2_control ............................... not started
+  Extra this session: visual two-finger gripper with an open/close toggle.
+
+
+================================================================================
+        1. WHERE WE STARTED
+================================================================================
+
+  - FK working: colcon build OK, 28/28 tests pass, FK agrees with TF ~1e-16 m.
+    Re-ran everything at the start of the session to confirm (same results).
+  - Open items from Day 2 that mattered for FK:
+      OPEN-1  kink direction unverified (a mirrored arm passes every test)
+      OPEN-2  joint limits unconfirmed (zero convention unknown)
+  - gripper_tip was a bare frame; no gripper modelled.
+  - Docs claimed the manual measures 0.800/0.940 m reach "to the fingertip".
+
+Side discussion: the end goal is likely pick-and-place. A pick-and-place node
+is the TOP layer and needs IK, motion between poses, a way to command the arm
+and a gripper underneath it. Deferred; IK stays the next step. Design point to
+remember: with 4 joints the approach direction of the gripper cannot be chosen
+freely - the first three joints spend their freedom on position, the forearm
+direction follows from shoulder + elbow, and the wrist only rolls about it.
+
+
+================================================================================
+        2. CHALLENGES AND HOW THEY WERE RESOLVED
+================================================================================
+
+CHALLENGE 1 - Kink direction (OPEN-1)
+
+  Problem: at the straight-arm pose the upper arm leans 8.13 deg to one side.
+  A mirror-image model (leaning the other way) has identical lengths, reach,
+  and code-vs-URDF agreement, so NO test can tell the two apart.
+  If it were mirrored, a "tilt shoulder 30 deg forward" command would actually
+  land the arm at 22 deg instead of 38 deg from vertical - a 16 deg error,
+  roughly 21 cm at the gripper. Pick-and-place would miss every time.
+
+  Resolved: positive shoulder angle tips the arm further in the direction it
+  already leans (student, from the manual), and Figure 3 shows the elbow
+  offset on the side the arm reaches toward. Both match the model.
+  Still: 30-second check on hardware.
+
+CHALLENGE 2 - Getting the manual
+
+  The Studocu link returned HTTP 403 (and was a profile page, not the file).
+  Resolved by attaching the PDF (QArm User Manual V2.1, 7 April 2021).
+
+CHALLENGE 3 - The manual gives TWO different reach figures
+
+  Section B (Configuration):  0.800 m horizontal, 0.940 m vertical
+  Section D (Workspace):      0.7536 m horizontal, 0.8936 m vertical
+
+  Our chain to end_effector:  0.753553 m          0.893553 m
+
+  Section D matches our model EXACTLY - independent confirmation of L1..L5,
+  beta and the DH table from Quanser's own numbers. This is stronger evidence
+  than anything we had on Day 2.
+
+  Section B is larger by the same 46.4 mm in both directions. On Day 2 we
+  ASSUMED that was the fingertip; the manual never says so.
+
+  Decision (option 1): Section B is measured to the fingertips. Keep
+  gripper_tip at 46.4 mm past end_effector. Docs now say this is our reading
+  of the manual, not a statement from it. Measure on hardware.
+
+CHALLENGE 4 - The joint limits did not fit our zero (the main finding)
+
+  The manual says Figure 3 is the HOME POSE: upper arm up, forearm
+  HORIZONTAL. Figure 4b "Home Configuration" shows the same. Quanser's joint
+  ranges (Table 7: -170/170, -85/85, -95/75, -160/160) are measured from it.
+
+  Our old zero was "arm dead straight", forearm in line with the upper arm.
+  To reach the manual's home pose our elbow had to bend 81.87 deg (90 - beta).
+  Running FK proved the mismatch:
+
+      qarm_fk 0 0 81.87 0 --no-limits  ->  end_effector (0.450, 0, 0.490)
+                                            = Figure 3 home pose exactly
+      qarm_fk 0 0 81.87 0              ->  error: joint_3 = 81.87 deg is
+                                            outside its limits [-95, 75]
+
+  The model could not reach the arm's own home pose.
+
+  Also corrected a wrong claim in our docs: "symmetric ranges transfer
+  regardless of where zero sits" is FALSE. If a zero is offset, a symmetric
+  range becomes asymmetric in the other convention. It only works if the
+  zeros coincide (true for base, shoulder, wrist; false for the elbow).
+
+  Student confirmed: positive elbow swings the forearm DOWN toward the table,
+  the same direction as ours. So the two conventions differ by a constant:
+      our_old_elbow = quanser_elbow + 81.87 deg
+
+  Two options:
+    A) keep our zero, convert the limits to -13.13 .. +156.87 deg.
+       Smallest change, but every hardware reading needs a +81.87 deg
+       conversion forever - an easy thing to forget.
+    B) adopt Quanser's zero. Limits stay exactly as printed in Table 7, and
+       angles pass between hardware, URDF, FK and IK unchanged.
+  Chose B.
+
+  What B changed:
+    URDF   joint_3 origin rpy: (0, beta, 0) -> (0, pi/2, 0)
+           pi/2 = beta + (90 deg - beta): the structural kink is still
+           applied exactly once, plus the 81.87 deg home-pose offset.
+    DH     row 3 theta: q3 + pi/2  ->  q3 + pi - beta
+           Read it as (q3 - ELBOW_STRAIGHT) + pi/2, where
+           ELBOW_STRAIGHT = beta - 90 deg = -81.87 deg is the elbow angle at
+           which the arm is dead straight. The bracket is the bend measured
+           from straight (the old q3); + pi/2 is the same bookkeeping as before.
+    Limits unchanged numerically: -95 .. +75 now means what Table 7 means.
+
+  WHY THE NEW -beta IN ROW 3 IS NOT THE DAY 2 BUG:
+    The Day 2 bug applied the kink's LENGTH twice and shortened the upper arm
+    (353.6 -> 346.5 mm). Here no length changes: a_2 is still lambda_2 and
+    row 3 has d = a = 0. The -beta only says where the elbow's zero points:
+    row 2 aims along lambda_2 (tilted +beta), but the elbow measures from L2
+    (not tilted), so row 3 rotates back by beta.
+    test_kink_applied_exactly_once still guards the length.
+
+  New zero pose, q = [0, 0, 0, 0] (= manual home pose):
+      end_effector  (0.450000, 0.000000, 0.490000) m,  RPY (0, 90 deg, 0)
+      gripper_tip   (0.496447, 0.000000, 0.490000) m
+  This is Figure 3 read directly: L3 + L4 + L5 = 0.45 m across the top,
+  L1 + L2 = 0.49 m up the side.
+  The Day 2 straight-arm numbers (0.106569, 0, 0.885980) still hold, now at
+  q = [0, 0, -81.87 deg, 0].
+
+CHALLENGE 5 - RPY readout broke at the new home pose (found by the change)
+
+  The home pose points the tool horizontally: pitch = 90 deg exactly, which is
+  RPY gimbal lock. rpy_from_transform computed cos(pitch) as sqrt(1 - sin^2);
+  1e-16 of rounding in sin became 1e-8 in cos, missed the gimbal-lock test,
+  and printed the home pose as (180, 90, 180) deg - the same orientation, but
+  confusing. Fixed with cos(pitch) = hypot(R[0,0], R[1,0]). Now (0, 90, 0).
+  The Day 2 review had noted this branch was untested; the zero-pose test
+  now exercises it.
+
+CHALLENGE 6 - Gripper: "the stub" was misread (assistant error)
+
+  The assistant took "same length as the stub" to mean the 46.4 mm
+  gripper_tip extension. The student meant the 15 cm L5 cylinder between the
+  wrist and end_effector. Corrected, then two drawings were offered:
+    A) fingers inside the 15 cm, fingertips at end_effector
+       (would contradict the Section B reach)
+    B) body over the 15 cm, fingers 46.4 mm past it to gripper_tip
+       (matches Section B)
+  Chose B.
+
+  Design:
+    - L5 cylinder = gripper body, red palm crossbar at its end.
+    - Two straight fingers, end_effector -> gripper_tip, sliding along the
+      end effector's y axis.
+    - finger_left_joint (prismatic, 0 = closed .. 0.020 m = open) and
+      finger_right_joint MIMICS it, so one number drives both fingers, like
+      the real gripper's single motor. Gap 0 .. 40 mm.
+    - Full stroke in 1 s, from Table 7's gripper speed (100 %/s).
+    - end_effector and gripper_tip did not move; FK is untouched.
+
+  Toggle:
+    - New node qarm_gripper: subscribes std_msgs/Bool on /gripper/command
+      (true = open, false = close), publishes the finger positions on
+      /gripper/joint_states, ramped at the real gripper's speed.
+    - joint_state_publisher_gui merges /gripper/joint_states into
+      /joint_states via its source_list parameter, so the toggle (not the
+      slider) drives the fingers. Works with or without the GUI.
+    - The node lives in qarm_description/scripts/, not qarm_kinematics,
+      because the display launch file would otherwise make qarm_description
+      depend on qarm_kinematics, which already depends on qarm_description -
+      a circular dependency colcon would reject.
+    - First test run failed pep257 D213 (multi-line docstring summary must
+      start on the second line). Fixed.
+
+CHALLENGE 7 - Tooling (assistant side, worth knowing)
+
+  - Commands run from Windows PowerShell into WSL did not return their output
+    reliably, so every check wrote to a log file under .agents/ and was read
+    back from there. Reads sometimes happened before the command finished.
+  - A ros2 launch started in the background of a script IGNORES Ctrl+C
+    (non-interactive bash disables SIGINT for background jobs), so the
+    headless gripper test left robot_state_publisher and the gripper node
+    running. Cleaned up; confirmed nothing left behind.
+  - "pkill -f <pattern>" also matched (and killed) its own shell, because the
+    pattern was in its own command line. Use "grep '[p]attern'" tricks or
+    PIDs instead.
+
+
+================================================================================
+        3. VERIFICATION EVIDENCE (real runs, after all changes)
+================================================================================
+
+colcon build .................... 2 packages, exit 0
+colcon test ..................... 30 tests, 0 errors, 0 failures, 0 skipped
+                                  (21 qarm_kinematics, 9 qarm_description lint)
+check_urdf ...................... valid tree
+    base_link -> link_1 -> link_2 -> link_3 -> link_4 -> end_effector
+              -> finger_left, finger_right, gripper_tip
+
+FK vs TF (qarm_validate_fk) ..... all 16 rows PASS, errors ~1e-16 m
+    all zeros (home)        FK (0.45000, 0.00000, 0.49000)  = TF
+    extended vertical       q = (0, -8.13, -81.87, 0)  -> z = 0.89355
+    extended horizontal     q = (0, 81.87, -81.87, 0)  -> x = 0.75355
+q4 invariance ................... FK spread 0.0 m, TF spread 8.3e-17 m
+
+Reach from the live TF tree:
+    horizontal  end_effector 0.753553 m   gripper_tip 0.800000 m
+    vertical    end_effector 0.893553 m   gripper_tip 0.940000 m
+    manual Section D 0.7536 / 0.8936 m, Section B 0.800 / 0.940 m
+
+Gripper (headless: robot_state_publisher + joint_state_publisher +
+qarm_gripper, finger positions read back from TF):
+    start (closed)        gap 0.000 m
+    0.5 s after OPEN      gap 0.018 m   (moving at ~40 mm/s, as designed)
+    1.5 s after OPEN      gap 0.040 m   (fully open)
+    1.5 s after CLOSE     gap 0.000 m
+    gripper_tip stayed at (0.496447, 0, 0.490000) throughout
+
+NOT verified: how it looks in RViz (no display available to the assistant).
+Check by eye:
+    ros2 launch qarm_description display.launch.py
+    ros2 topic pub --once /gripper/command std_msgs/msg/Bool "{data: true}"
+    ros2 topic pub --once /gripper/command std_msgs/msg/Bool "{data: false}"
+
+
+================================================================================
+        4. FILES CHANGED
+================================================================================
+
+MODIFIED  src/qarm_description/urdf/qarm.urdf.xacro
+            joint_3 zero = home pose (rpy 0 pi/2 0); limits sourced to Table 7;
+            palm + two fingers (finger_left_joint, mimic finger_right_joint);
+            comments updated for the two reach figures
+NEW       src/qarm_description/scripts/qarm_gripper.py   (open/close node)
+MODIFIED  src/qarm_description/CMakeLists.txt   installs qarm_gripper
+MODIFIED  src/qarm_description/package.xml      rclpy, sensor_msgs,
+                                                std_msgs, joint_state_publisher
+MODIFIED  src/qarm_description/launch/display.launch.py
+            starts qarm_gripper; GUI merges gripper/joint_states
+MODIFIED  src/qarm_kinematics/qarm_kinematics/robot_params.py
+            ELBOW_STRAIGHT; zero-convention and reach notes
+MODIFIED  src/qarm_kinematics/qarm_kinematics/forward_kinematics.py
+            DH row 3 = (q3 - ELBOW_STRAIGHT) + pi/2; RPY gimbal-lock fix
+MODIFIED  src/qarm_kinematics/qarm_kinematics/validate_fk_vs_tf.py
+            reach poses use ELBOW_STRAIGHT; prints both manual reach figures
+MODIFIED  src/qarm_kinematics/test/test_forward_kinematics.py
+            home-pose test, straight-arm test, row-3 test, reach poses
+MODIFIED  docs/kinematics.md   zero convention, DH row 3, home pose,
+                               two reach figures, gripper, usage
+NEW       day3_4_summary.txt   this file
+
+
+================================================================================
+        5. HARDWARE-DAY CHECKLIST (arm arrives in ~4 days)
+================================================================================
+
+  [ ] Place the arm in the Figure 4b home configuration: all four joints
+      should read ~0. (Confirms the zero convention adopted today.)
+  [ ] Small positive shoulder command: arm tips toward the kink side.
+  [ ] Small positive elbow command: forearm swings down toward the table.
+  [ ] Base and wrist: note which way positive turns.
+  [ ] Measure palm face (end of L5) to fingertips: expect ~46 mm.
+      (Confirms our reading of the Section B reach.)
+  [ ] Gripper 0 % / 100 %: which is open and which is closed.
+
+
+================================================================================
+        6. OPEN ITEMS
+================================================================================
+
+  OPEN-3  build_urdf_string() prefers the INSTALLED xacro, so editing the URDF
+          without rebuilding makes the FK-vs-TF test compare against a stale
+          model. (Every check today followed a rebuild, so results stand.)
+  OPEN-4  .github/workflows/ci.yaml runs only colcon build, not the tests.
+  OPEN-5  No collision or inertial elements (goal 4).
+  NEW     The xacro still defines lambda_3 = L4 and lambda_4 = L5 (old
+          notation). Math unaffected; names disagree with the docs/manual.
+  NEW     end_effector's yellow roll-indicator bar now overlaps the palm and
+          the left finger. Cosmetic; the fingers show the roll anyway.
+  NEW     DH frame 4's x axis points opposite to the manual's x4 in Figure 3
+          (a 180 deg roll difference in the frame choice). Does not affect
+          position; check against the wrist zero on hardware.
+  Review  test_poses() name is a pytest trap; validator changes
+          ROS_DOMAIN_ID and never restores it; L_GRIPPER is rounded.
+
+
+================================================================================
+        7. NEXT SESSION
+================================================================================
+
+  Joint limits are no longer blocking: they are Table 7's values in a zero
+  convention that matches the manual. IK can start (Day 2 plan, Step 2),
+  with one change to the Day 2 derivation:
+
+    The two-link planar solution gives the elbow bend measured from STRAIGHT.
+    Convert to the joint variable with  q3 = bend + ELBOW_STRAIGHT.
+    Import ELBOW_STRAIGHT from robot_params.py; do not retype -81.87.
+
+  Also useful for IK: Figure 5a of the manual shows the inner workspace
+  boundary (the "target too close" case).
+
+  Suggested order:
+    1. Quick fixes OPEN-3 and OPEN-4 (small; makes the tests trustworthy).
+    2. Analytical IK + round-trip tests (Day 2 summary, Steps 2-3).
+    3. Hardware checklist above when the arm arrives; update docs if any
+       check disagrees.
+
+================================================================================
