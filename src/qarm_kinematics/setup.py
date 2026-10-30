@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='watimake',
     maintainer_email='elilgrade8@gmail.com',
-    description='Forward kinematics for the Quanser QArm (4-DOF RPPR manipulator).',
+    description='Forward and inverse kinematics for the Quanser QArm (4-DOF RPPR manipulator).',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
@@ -26,6 +26,12 @@ setup(
             # Headless FK-vs-TF comparison table (see validate_fk_vs_tf.py).
             #   ros2 run qarm_kinematics qarm_validate_fk
             'qarm_validate_fk = qarm_kinematics.validate_fk_vs_tf:main',
+            # Target position -> joint angles (see inverse_kinematics.py).
+            #   ros2 run qarm_kinematics qarm_ik 0.3 0.1 0.4 [WRIST] [--tip]
+            'qarm_ik = qarm_kinematics.inverse_kinematics:main',
+            # IK PASS/FAIL validation table (see validate_ik.py).
+            #   ros2 run qarm_kinematics qarm_validate_ik
+            'qarm_validate_ik = qarm_kinematics.validate_ik:main',
         ],
     },
 )

@@ -249,18 +249,58 @@ q2 = -beta.
 independent confirmation of L1..L5, beta and the DH table from Quanser's own
 numbers.
 
-**Section B is larger by the same 0.046447 m in both directions.** A wrong link
-length would project differently into the horizontal and the vertical, so an
-identical offset can only be a constant length appended at the tip.
-Decision (Day 3): Section B is measured to the **fingertips**, 46.4 mm past
-`end_effector`. The manual does not say this outright. **Measure it on the
-hardware**: the distance from the palm face at the end of L5 to the fingertips
-should be ~46 mm.
+**Section B is larger by the same 0.046447 m in both directions.** Day 2 read
+that identical shortfall as proof of a constant length appended at the tip, on
+the grounds that a wrong link length would project differently into the
+horizontal and the vertical. **That argument is weaker than it looks** - see
+below - but the conclusion that L1..L5 are correct still stands, because
+Section D confirms them directly.
 
-So the Xacro declares `L_gripper = 0.046447` and an ADDITIONAL fixed frame
-`gripper_tip`. `end_effector` is unchanged and remains the FK/IK target.
+### Two explanations, and the arithmetic that separates them
+
+Section B's numbers are not approximately anything. They are exactly
+
+    horizontal  2 * lambda_3           = 0.800000 m
+    vertical    lambda_1 + 2 lambda_3  = 0.940000 m
+
+and the 46.4 mm residual is exactly
+
+    lambda_3 - lambda_2 = 0.400000 - 0.353553 = 0.0464466 m
+
+which matches the quoted residual to seven decimals. So:
+
+| hypothesis | Section B is | predicted residual |
+|------------|--------------|--------------------|
+| H1 gripper | lambda_2 + lambda_3 + L_gripper, measured to the fingertips | L_gripper, whatever the gripper actually measures |
+| H2 slip    | lambda_3 + lambda_3, i.e. lambda_2 mistakenly replaced by lambda_3 | lambda_3 - lambda_2 = 0.046447 m, forced |
+
+**Both hypotheses predict the SAME shortfall in both directions**, because both
+reach figures are built from the same lambda sum - so the "identical shortfall"
+observation cannot tell them apart. What it does rule out is a wrong L1..L5.
+
+H2 additionally explains why the residual lands on lambda_3 - lambda_2 to seven
+decimals. Under H1 that is a coincidence requiring the real gripper to be
+46.4466 mm long.
+
+### What this means in practice
+
+Nothing in the arm model changes either way: `end_effector` is unchanged, it is
+still the FK/IK target, and Section D still confirms the geometry.
 **L1..L5 are correct as given and must not be adjusted to force any reach
 number to match.**
+
+The Xacro still declares `L_gripper = 0.046447` and the extra `gripper_tip`
+frame, so Section B remains reproducible. But `L_gripper` should be treated as
+UNVERIFIED, not as a measured dimension.
+
+**The hardware settles it in one measurement.** Measure from the palm face at
+the end of L5 to the fingertips:
+
+* ~46.4 mm -> H1, `L_gripper` is real, keep it.
+* anything clearly different -> H2, Section B is a manual arithmetic slip.
+  Set `L_gripper` to the measured value (`gripper_tip` then stops reproducing
+  Section B, which is the correct outcome), and treat Section D as the only
+  authoritative reach figure.
 
 ## 8. Using it
 
@@ -271,7 +311,20 @@ ros2 run qarm_kinematics qarm_fk 0 0 0 0
 # Headless FK-vs-TF comparison table
 ros2 run qarm_kinematics qarm_validate_fk
 
-# Same comparison as an automatic regression test
+# INVERSE: joint angles from a target position in metres (base_link)
+ros2 run qarm_kinematics qarm_ik 0.3 0.2 0.5
+
+# ...with a wrist angle (degrees clockwise), from a known current pose
+ros2 run qarm_kinematics qarm_ik 0.3 0.2 0.5 90 --current 30 -20 -40 10
+
+# ...keeping the current wrist angle, and targeting the fingertips
+ros2 run qarm_kinematics qarm_ik 0.3 0.2 0.5 N/A --current 30 -20 -40 10
+ros2 run qarm_kinematics qarm_ik 0.3 0.2 0.5 --tip
+
+# IK PASS/FAIL validation table
+ros2 run qarm_kinematics qarm_validate_ik
+
+# Both comparisons as automatic regression tests
 colcon test --packages-select qarm_kinematics && colcon test-result --verbose
 
 # RViz + sliders + gripper toggle
@@ -287,19 +340,157 @@ positions on `/gripper/joint_states`; `joint_state_publisher_gui` merges them
 into `/joint_states` through its `source_list` parameter, so the toggle, not the
 slider, drives the fingers.
 
-## 9. Inverse kinematics (next phase - NOT implemented)
+## 9. Inverse kinematics (implemented, closed form)
 
-Because q4 is decoupled from position, IK splits cleanly:
+`qarm_kinematics/inverse_kinematics.py`. Closed form, no iteration. All
+geometry is imported from `robot_params.py`; no number is re-typed.
 
-1. Given a target position p = (x, y, z) in `base_link`, solve q1, q2, q3.
-   q1 orients the whole arm's plane, after which it reduces to a two-link
-   planar reach problem in lambda_2 = 0.353553 and lambda_3 = 0.400000, with
-   the beta offset folded into q2 exactly as in row 2 of the DH table. The
-   two-link solution gives the elbow bend measured from straight; convert to
-   the joint variable with q3 = bend + ELBOW_STRAIGHT.
-2. Given a target orientation, solve q4.
+### The split
 
-A closed-form solution is expected. Elbow-up / elbow-down will give two solution
-families; choose by joint limits or by shortest motion from the current pose.
-Figure 5a of the manual also shows the inner workspace boundary, needed for the
-"target too close" case.
+q4 rolls about the forearm axis and `end_effector` sits on that axis, so q4
+cannot move the end effector (section 3). Position therefore depends on
+q1, q2, q3 only, and the wrist angle is passed straight through.
+
+### Step 1 - the base angle
+
+The shoulder and elbow both pitch about horizontal axes, so the arm always lies
+in one vertical plane through the base axis. The base turns that plane to face
+the target:
+
+    q1 = atan2(y, x)
+    r  = sqrt(x^2 + y^2)      distance from the base axis, in the plane
+    h  = z - lambda_1         height above the shoulder axis
+
+If x = y = 0 the target is on the base axis, `atan2(0, 0)` has no answer, and
+every base angle reaches it - the arm just spins about the target. The solver
+keeps the **current** base angle there, so the base does not move for nothing.
+That is the only position singularity in the solver.
+
+### Step 2 - a two-link arm in the plane
+
+Measure directions as angles from vertical, positive toward +r:
+
+    phi_2 = direction of the upper arm = q2 + beta   (beta from DH row 2)
+    gamma = elbow bend away from straight            (0 = arm dead straight)
+
+    r = lambda_2 sin(phi_2) + lambda_3 sin(phi_2 + gamma)
+    h = lambda_2 cos(phi_2) + lambda_3 cos(phi_2 + gamma)
+
+The shoulder-to-target distance D depends on the bend alone (law of cosines on
+the shoulder-elbow-target triangle):
+
+    cos(gamma) = (D^2 - lambda_2^2 - lambda_3^2) / (2 lambda_2 lambda_3)
+
+so `gamma = +acos(...)` or `-acos(...)`: the elbow sits on either side of the
+shoulder-target line. Then
+
+    phi_2 = atan2(r, h)
+            - atan2(lambda_3 sin gamma, lambda_2 + lambda_3 cos gamma)
+
+### Step 3 - back to joint angles
+
+    q2 = phi_2 - beta                  undo the kink          (DH row 2)
+    q3 = gamma + ELBOW_STRAIGHT        bend-from-straight -> joint angle,
+                                       because the elbow's zero is the home
+                                       pose                   (DH row 3)
+
+### Four candidates, two arm shapes
+
+The base can also turn the other way, `q1 + pi`, and the arm lean back over the
+shoulder; in the plane that is `r = -sqrt(x^2 + y^2)`. Two families times two
+bends gives four candidates.
+
+They are not four shapes. Because the shoulder sits ON the base axis,
+`atan2(-r, h) = -atan2(r, h)`, so the backward solution with bend `-gamma` has
+`phi_2' = -phi_2` and therefore the same world elbow position and the same tool
+position as the facing solution with bend `+gamma`. The four joint vectors
+describe **two physical arm shapes, each written two ways**:
+
+    facing +gamma   ==  backward -gamma      (one shape)
+    facing -gamma   ==  backward +gamma      (the other shape)
+
+Which of the two writings is legal is decided by the joint limits, and usually
+only one is. The QArm elbow reaches only 13.13 deg past straight in the
+negative direction (`q3 >= -95 deg`, and straight is -81.87 deg), so the facing
+family is nearly always elbow-up only, and **the backward family is how the arm
+reaches the other shape at all** - it is not a curiosity, it is half the
+workspace. Labels are physical: the shape whose elbow is higher is `up`.
+
+Worked example, target (0.3, 0.2, 0.5) m, from `qarm_ik`:
+
+```
+reach      elbow     q1..q4 [deg]                         limits
+facing     up          33.690  -14.521   13.282    0.000  ok
+facing     down        33.690   88.349 -177.022    0.000  out of range: joint_2, joint_3
+backward   down      -146.310 -104.609   13.282    0.000  out of range: joint_2
+backward   up        -146.310   -1.740 -177.022    0.000  out of range: joint_3
+```
+
+### Choosing one
+
+`solve()` keeps the in-limit candidates and returns the shortest move from the
+current pose. All four joints share one speed limit (pi/2 rad/s, Table 7), so
+move time is set by the joint with the furthest to go: "shortest" is the
+smallest `max |dq|`, not the sum. Ties within 1e-9 rad go to elbow up, then to
+the facing family.
+
+### Wrist command
+
+`wrist_from_command()` takes `'N/A'` (keep the current wrist), `'home'` (0), or
+degrees 0-360 measured **clockwise** seen from behind the wrist looking out at
+the fingertips. Past 180 it takes the short way round, so 270 clockwise is the
+same orientation as 90 counter-clockwise. The wrist stops at +/-160 deg, so
+161-199 deg is unreachable and reports a `JointLimitError` on `joint_4`.
+
+### Unreachable targets - never a silent NaN
+
+| exception | meaning | boundary |
+|-----------|---------|----------|
+| `TargetTooFarError`   | beyond the stretched arm | D > lambda_2 + lambda_3 = 0.753553 m |
+| `TargetTooCloseError` | inside the dead zone around the shoulder | D < \|lambda_3 - lambda_2\| = 0.046447 m |
+| `JointLimitError`     | geometry works, every candidate breaks a limit | carries `.candidates` and `.violations` |
+
+All three subclass `IKError`, itself a `ValueError`. The inner boundary is the
+small sphere the two-link arm cannot fold into; Figure 5a of the manual shows
+the same hole in the workspace, larger there because it also accounts for the
+joint limits this solver reports separately.
+
+NOT checked: collisions with the worksurface, the base or the arm itself. There
+is no collision model yet (goal 4), so a returned solution can still be a pose
+you would not want to command on hardware.
+
+### Validation
+
+`qarm_kinematics/validate_ik.py` holds the checks; `test/test_inverse_kinematics.py`
+runs each one as its own pytest case, so `colcon test` and
+`ros2 run qarm_kinematics qarm_validate_ik` cannot disagree.
+
+The important one is the round trip: for known joint angles q, `IK(FK(q))` must
+return q. It trusts no IK formula - only FK, which is already validated against
+the URDF and the TF tree.
+
+| check | result |
+|-------|--------|
+| round trip over a 250-pose grid | 250/250, worst joint error 6.2e-15 rad |
+| round trip, 984 random poses | worst joint error 2.2e-14 rad |
+| every returned solution reaches its target | 1751 solutions / 1000 targets, worst miss 4.7e-16 m |
+| no out-of-limit solution ever returned | 0 in 1000 targets |
+| both arm shapes reach one point | elbow up and down, within 2.5e-16 m |
+| behind the base | backward family only, 6.7e-16 rad |
+| exactly at max reach | elbow `straight`, 3.3e-17 rad |
+| vertical max reach | base angle kept, miss 3.1e-17 m |
+| just beyond reach | `TargetTooFarError` |
+| straight overhead | base angle kept |
+| too close | `TargetTooCloseError` |
+| out of joint range | `JointLimitError` |
+| `gripper_tip` frame round trip | worst miss 4.8e-16 m |
+| wrist commands | all conversions, 180 deg rejected, bad input rejected |
+| shortest move and tie-break | nearest picked, tie goes to elbow up |
+
+### Still open
+
+* The straight-elbow pose is a genuine singularity: near full stretch the tool
+  position barely depends on the bend, so the round-trip check skips poses
+  within 1 deg of straight. Positions are still exact there; the joint angles
+  are just not uniquely recoverable, which is a property of the arm.
+* No trajectory generation. `solve()` gives one pose, not a path.

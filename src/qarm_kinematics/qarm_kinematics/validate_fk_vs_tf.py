@@ -83,24 +83,41 @@ STARTUP_TIMEOUT = 30.0
 LOOKUP_TIMEOUT = 5.0
 
 
-def build_urdf_string():
-    """Expand ``qarm.urdf.xacro`` into a URDF string.
+def xacro_path():
+    """Return the path of the ``qarm.urdf.xacro`` the comparison should use.
 
-    Prefers the installed share directory (what a running system would use) and
-    falls back to the source tree, so the script still works before a build.
+    Prefers the SOURCE tree over the installed copy. A plain ``colcon build``
+    copies the Xacro into install/, so an edit to src/ is invisible to the
+    installed copy until the next build. Reading the installed copy would let
+    this guard pass against a stale model - exactly the drift it exists to
+    catch. Candidates, in order:
+
+      1. next to this file, when it is imported from the source tree;
+      2. <workspace>/src/qarm_description/..., found from the install prefix
+         (<workspace>/install/qarm_description), the standard colcon layout;
+      3. the installed share directory, as a last resort (no source tree).
     """
+    name = os.path.join('qarm_description', 'urdf', 'qarm.urdf.xacro')
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [os.path.join(here, '..', '..', name)]
     try:
-        share = get_package_share_directory('qarm_description')
-        path = os.path.join(share, 'urdf', 'qarm.urdf.xacro')
+        prefix = get_package_prefix('qarm_description')
+        candidates.append(os.path.join(prefix, '..', '..', 'src', name))
+        candidates.append(os.path.join(
+            get_package_share_directory('qarm_description'), 'urdf', 'qarm.urdf.xacro'))
     except Exception:       # pragma: no cover - only hit on a broken install
-        path = None
+        pass
 
-    if path is None or not os.path.exists(path):
-        here = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.normpath(os.path.join(
-            here, '..', '..', 'qarm_description', 'urdf', 'qarm.urdf.xacro'))
+    for path in candidates:
+        if os.path.exists(path):
+            return os.path.normpath(path)
+    raise FileNotFoundError('qarm.urdf.xacro not found; tried:\n  ' + '\n  '.join(
+        os.path.normpath(p) for p in candidates))
 
-    return xacro.process_file(path).toxml()
+
+def build_urdf_string():
+    """Expand ``qarm.urdf.xacro`` (see :func:`xacro_path`) into a URDF string."""
+    return xacro.process_file(xacro_path()).toxml()
 
 
 def test_poses():
@@ -380,6 +397,7 @@ def format_table(rows, extras, tolerance=TOLERANCE):
     """Render the comparison as a readable fixed-width table."""
     out = []
     out.append('FK (python, DH)  vs  TF (robot_state_publisher, URDF)')
+    out.append('urdf: {}'.format(xacro_path()))
     out.append('tolerance: {:g} m / {:g} quaternion units'.format(tolerance, tolerance))
     out.append('')
     header = ('{:<20s} {:<34s} {:<26s} {:<26s} {:>10s} {:>10s}  {}'.format(
