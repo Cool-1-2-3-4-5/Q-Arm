@@ -25,10 +25,22 @@ def generate_launch_description():
         }],
     )
 
+    # source_list merges the gripper node's finger positions into the
+    # /joint_states this node publishes, so the toggle (not the slider)
+    # drives the fingers.
     node_joint_state_publisher_gui = Node(
         package='joint_state_publisher_gui',
         executable='joint_state_publisher_gui',
         name='joint_state_publisher_gui',
+        parameters=[{'source_list': ['gripper/joint_states']}],
+    )
+
+    # Gripper open/close toggle:
+    #   ros2 topic pub --once /gripper/command std_msgs/msg/Bool "{data: true}"
+    node_gripper = Node(
+        package='qarm_description',
+        executable='qarm_gripper',
+        output='screen',
     )
 
     node_rviz = Node(
@@ -41,5 +53,6 @@ def generate_launch_description():
     return LaunchDescription([
         node_robot_state_publisher,
         node_joint_state_publisher_gui,
+        node_gripper,
         node_rviz,
     ])

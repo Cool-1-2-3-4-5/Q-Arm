@@ -57,10 +57,17 @@ from qarm_kinematics.robot_params import (
     BASE_FRAME,
     BETA,
     EE_FRAME,
+    ELBOW_STRAIGHT,
     JOINT_LIMITS,
     JOINT_NAMES,
     TIP_FRAME,
 )
+
+#: Fully extended reach poses, elbow dead straight (q3 = beta - 90 deg).
+#: Horizontal: q2 = 90 deg - beta levels the effective upper arm.
+#: Vertical:   q2 = -beta cancels the kink and stands the chain upright.
+REACH_HORIZONTAL = [0.0, math.pi / 2.0 - BETA, ELBOW_STRAIGHT, 0.0]
+REACH_VERTICAL = [0.0, -BETA, ELBOW_STRAIGHT, 0.0]
 
 #: Agreement we demand. 1e-6 m is a micron - far tighter than the arm's own
 #: repeatability, but both sides are doing the same arithmetic in double
@@ -114,14 +121,14 @@ def test_poses():
         rows only show up when everything moves at once.
     """
     cases = [
-        ('all zeros', [0.0, 0.0, 0.0, 0.0]),
+        ('all zeros', [0.0, 0.0, 0.0, 0.0]),          # the manual's home pose
         ('joint_1 alone', [0.6, 0.0, 0.0, 0.0]),
         ('joint_2 alone', [0.0, 0.6, 0.0, 0.0]),
         ('joint_3 alone', [0.0, 0.0, -0.8, 0.0]),
         ('joint_4 alone', [0.0, 0.0, 0.0, 1.2]),
         ('all four nonzero', [0.5, -0.4, 0.6, -1.0]),
-        ('extended vertical', [0.0, -BETA, 0.0, 0.0]),
-        ('extended horizontal', [0.0, math.pi / 2.0 - BETA, 0.0, 0.0]),
+        ('extended vertical', REACH_VERTICAL),
+        ('extended horizontal', REACH_HORIZONTAL),
         ('q4=-1.5', [0.4, -0.3, 0.5, -1.5]),
         ('q4=0.0', [0.4, -0.3, 0.5, 0.0]),
         ('q4=+1.5', [0.4, -0.3, 0.5, 1.5]),
@@ -345,9 +352,11 @@ def run_validation(verbose=True, tolerance=TOLERANCE):
         # Horizontal: shoulder pitched so the effective upper arm is level,
         # i.e. q2 = 90 deg - beta, elbow straight. Vertical: q2 = -beta, which
         # cancels the structural kink and stands the whole chain upright.
+        # "Elbow straight" is q3 = ELBOW_STRAIGHT = beta - 90 deg, because the
+        # elbow's zero is the manual's home pose (forearm horizontal).
         # ------------------------------------------------------------------
-        horiz_q = [0.0, math.pi / 2.0 - BETA, 0.0, 0.0]
-        vert_q = [0.0, -BETA, 0.0, 0.0]
+        horiz_q = REACH_HORIZONTAL
+        vert_q = REACH_VERTICAL
         ee_h = probe.lookup(horiz_q, EE_FRAME)
         tip_h = probe.lookup(horiz_q, TIP_FRAME)
         ee_v = probe.lookup(vert_q, EE_FRAME)
@@ -396,7 +405,8 @@ def format_table(rows, extras, tolerance=TOLERANCE):
         extras['reach_h_ee'], extras['reach_h_tip']))
     out.append('  vertical    end_effector {:.6f} m   gripper_tip {:.6f} m'.format(
         extras['reach_v_ee'], extras['reach_v_tip']))
-    out.append('  manual quotes 0.800 m horizontal / 0.940 m vertical to the fingertip')
+    out.append('  manual Section D: 0.7536 m / 0.8936 m (end_effector)')
+    out.append('  manual Section B: 0.800 m / 0.940 m (read as fingertip, gripper_tip)')
     out.append('')
     failures = [row['label'] for row in rows if not row['ok']]
     if failures or not extras['q4_invariant']:

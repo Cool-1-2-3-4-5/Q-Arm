@@ -106,27 +106,58 @@ TOOL_LENGTH = LAMBDA_3
 # ---------------------------------------------------------------------------
 # GRIPPER EXTENSION beyond end_effector.
 #
-# The manual quotes a net reach of 0.800 m horizontal and 0.940 m vertical
-# above the worksurface. Our chain reaches:
+# The manual gives TWO sets of reach numbers:
+#   Section D (Workspace)      0.7536 m horizontal, 0.8936 m vertical
+#   Section B (Configuration)  0.800  m horizontal, 0.940  m vertical
+# Our chain reaches, to end_effector:
 #   horizontal  lambda_2 + lambda_3            = 0.753553 m
 #   vertical    lambda_1 + lambda_2 + lambda_3 = 0.893553 m
-# Both fall short by the SAME 0.046447 m. A link-length error would show up
-# differently in the two directions; an identical shortfall can only be a
-# constant length tacked onto the tip. So: end_effector is the gripper
-# MOUNTING face, and the manual measures to the FINGERTIP, 46.4 mm further
-# out. L1..L5 are correct as given and must not be "fixed".
+# which is Section D exactly - independent confirmation of the geometry.
+#
+# Section B is larger by the SAME 0.046447 m in both directions. A link-length
+# error would show up differently in the two directions; an identical offset
+# can only be a constant length tacked onto the tip. Decision: Section B is
+# measured to the FINGERTIPS, 46.4 mm past end_effector (where the fingers
+# start). The manual does not say this outright - measure it on the hardware.
+# L1..L5 are correct as given and must not be "fixed".
 # ---------------------------------------------------------------------------
 L_GRIPPER = 0.046447
 
 
 # ---------------------------------------------------------------------------
-# JOINT LIMITS (radians), matching the <limit> tags in the Xacro.
-# Source: Quanser QArm product-page specifications table.
+# JOINT ZERO CONVENTION - all four joints read 0 at the manual's HOME POSE.
 #
-# CAVEAT carried over from the URDF: these are stated in Quanser's own joint
-# convention. The symmetric ranges transfer no matter where zero sits, but the
-# asymmetric elbow range (-95/+75) assumes Quanser's elbow zero equals ours.
-# Confirm on hardware before trusting it for IK.
+# The home pose is drawn in Figure 3 and Figure 4b of the manual: upper arm
+# up, forearm sticking out HORIZONTALLY. It is the pose the real arm reports
+# as zero and the pose Table 7's joint ranges are measured from, so we use the
+# same zero. Angles then pass between hardware, URDF, FK and IK unchanged.
+#
+# Base, shoulder and wrist zeros were already the same as Quanser's. Only the
+# elbow moved: at elbow = 0 the forearm is perpendicular to L2 (the upper
+# arm's own axis), NOT in line with the effective upper arm lambda_2. (Before
+# this change, elbow = 0 meant "arm dead straight", and the manual's home pose
+# sat at elbow = 81.87 deg - outside the old -95..+75 limit, which is how the
+# mismatch was found.)
+#
+# The arm is dead straight - forearm continuing along lambda_2 - when the
+# elbow is raised from home by 90 deg - beta:
+#
+#     ELBOW_STRAIGHT = beta - 90 deg = -81.8699 deg
+#
+# Positive elbow swings the forearm DOWN toward the table (student's
+# statement of the Quanser convention; confirm on hardware).
+# ---------------------------------------------------------------------------
+ELBOW_STRAIGHT = BETA - math.pi / 2.0      # -1.428899 rad == -81.8699 deg
+
+
+# ---------------------------------------------------------------------------
+# JOINT LIMITS (radians), matching the <limit> tags in the Xacro.
+# Source: Quanser QArm user manual, Table 7 ("Joint range"), which states them
+# relative to the home pose above. Because our zero IS that home pose, the
+# values apply directly with no conversion.
+#
+# Still to confirm on hardware: with the arm placed in the Figure 4b home
+# configuration, the joint readings should all be ~0.
 # ---------------------------------------------------------------------------
 JOINT_NAMES = ('joint_1', 'joint_2', 'joint_3', 'joint_4')
 

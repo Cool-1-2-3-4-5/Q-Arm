@@ -19,6 +19,14 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
+# Gripper open/close toggle node (simulation).
+#   ros2 run qarm_description qarm_gripper
+install(PROGRAMS
+  scripts/qarm_gripper.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME qarm_gripper
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   set(ament_cmake_copyright_FOUND TRUE)

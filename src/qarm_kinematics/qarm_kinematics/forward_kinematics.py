@@ -46,22 +46,28 @@ HOW THIS TABLE WAS OBTAINED
 Not guessed from a figure. It was DERIVED from the URDF chain by algebra, so it
 is provably the same robot. The URDF chain is
 
-    T = Rz(q1) Tz(L1) Ry(q2) T(L3,0,L2) Ry(beta) Ry(q3) Tz(L4) Rz(q4) Tz(L5)
+    T = Rz(q1) Tz(L1) Ry(q2) T(L3,0,L2) Ry(pi/2) Ry(q3) Tz(L4) Rz(q4) Tz(L5)
+
+The Ry(pi/2) is the elbow's zero convention: every joint reads 0 at the
+manual's home pose (Figure 3), where the forearm sticks out horizontally,
+perpendicular to the upper arm's own axis L2.
 
 The key step is that the kink offset (L3, 0, L2) is itself a pure rotation of a
 pure translation, because (L3, 0, L2) = lambda_2 * (sin beta, 0, cos beta):
 
     T(L3,0,L2) = Ry(beta) Tz(lambda_2) Ry(-beta)
 
-Substituting that, the Ry(-beta) cancels the structural Ry(beta) that follows
-it, and Rz/Tz about the same axis commute, so the chain collapses to
+Substituting that, and letting Rz/Tz about the same axis commute, the chain
+collapses to
 
-    T = Rz(q1) Tz(lambda_1) Ry(q2 + beta) Tz(lambda_2) Ry(q3) Tz(lambda_3)
-        Rz(q4)
+    T = Rz(q1) Tz(lambda_1) Ry(q2 + beta) Tz(lambda_2)
+        Ry(q3 + pi/2 - beta) Tz(lambda_3) Rz(q4)
 
 which is exactly four joints acting on three effective lengths - the DH form.
-The constant -pi/2 in row 2 and +pi/2 in row 3 are NOT physical; they are the
-bookkeeping that converts "pitch about y" into DH's "rotate about z, twist
+The Ry(-beta) that falls out of the kink now lands inside the elbow rotation
+(the "- beta" in q3 + pi/2 - beta), see row 3 of :func:`dh_table` for why that
+is not a double count. The constant -pi/2 in row 2 and the first +pi/2 in row 3
+are bookkeeping that converts "pitch about y" into DH's "rotate about z, twist
 about x". ``test_dh_matches_urdf_chain`` re-checks this algebra numerically, and
 ``test_fk_vs_tf.py`` checks it against the real TF tree.
 """
@@ -74,6 +80,7 @@ import numpy as np
 from qarm_kinematics.robot_params import (
     BETA,
     EE_FRAME,
+    ELBOW_STRAIGHT,
     JOINT_LIMITS,
     JOINT_NAMES,
     LAMBDA_1,
@@ -163,10 +170,27 @@ def dh_table(q):
                             two-link planar pair.
 
     Row 3 - elbow pitch, URDF ``joint_3`` (axis +Y of ``link_2``).
-        theta = q3 + pi/2   q3 plus bookkeeping. Note there is NO beta here:
-                            the kink was already spent in row 2. Adding it
-                            again is precisely the double-count bug the old
-                            URDF had.
+        theta = q3 + pi - beta
+              = (q3 - ELBOW_STRAIGHT) + pi/2
+                            Read the second form. (q3 - ELBOW_STRAIGHT) is the
+                            elbow's bend measured from "arm dead straight",
+                            i.e. from the lambda_2 line that row 2 just laid
+                            down; + pi/2 is the same bookkeeping as before.
+                            We need the shift because the elbow's ZERO is the
+                            manual's home pose (forearm horizontal, square to
+                            L2), and the arm is straight at q3 = beta - 90 deg.
+                            Expanding gives + pi - beta.
+
+                            WHY THE -beta IS NOT THE OLD DOUBLE-COUNT BUG.
+                            That bug applied the kink's LENGTH twice (an L3
+                            translation and a beta pre-tilt), which shortened
+                            the upper arm. Here no length is touched: a_2 is
+                            still lambda_2, and row 3 has a = d = 0. The
+                            -beta only says where the elbow's zero points:
+                            row 2 aims along lambda_2 (tilted +beta), but the
+                            elbow measures from L2 (not tilted), so row 3
+                            rotates back by beta. Lengths are guarded by
+                            ``test_kink_applied_exactly_once``.
         d     = 0           elbow and wrist axes intersect at the elbow.
         a     = 0           likewise zero distance along the common normal.
         alpha = +pi/2       the elbow axis is perpendicular to the forearm,
@@ -196,7 +220,7 @@ def dh_table(q):
     return (
         (q1, LAMBDA_1, 0.0, -math.pi / 2.0),
         (q2 + BETA - math.pi / 2.0, 0.0, LAMBDA_2, 0.0),
-        (q3 + math.pi / 2.0, 0.0, 0.0, math.pi / 2.0),
+        ((q3 - ELBOW_STRAIGHT) + math.pi / 2.0, 0.0, 0.0, math.pi / 2.0),
         (q4, TOOL_LENGTH, 0.0, 0.0),
     )
 
@@ -310,13 +334,18 @@ def rpy_from_transform(transform):
     separable (only their sum is defined) so we pin roll to 0 and put the whole
     rotation into yaw. That is the conventional choice, not extra information.
 
+    The home pose (all joints 0) points the tool horizontally, which is pitch =
+    90 deg exactly, so this branch is hit in normal use. cos(pitch) is
+    therefore read from the matrix as hypot(R[0,0], R[1,0]) rather than as
+    sqrt(1 - sin^2): the square-root form turns 1e-16 of rounding in sin into
+    1e-8 in cos, misses the gimbal-lock test, and reports the home pose as the
+    equivalent but confusing (180, 90, 180) deg.
+
     :returns: numpy array ``[roll, pitch, yaw]`` in radians.
     """
     r = np.asarray(transform, dtype=float)[:3, :3]
-    sin_pitch = -r[2, 0]
-    sin_pitch = min(1.0, max(-1.0, sin_pitch))      # guard against 1+1e-16
-    cos_pitch = math.sqrt(max(0.0, 1.0 - sin_pitch * sin_pitch))
-    pitch = math.asin(sin_pitch)
+    cos_pitch = math.hypot(r[0, 0], r[1, 0])
+    pitch = math.atan2(-r[2, 0], cos_pitch)
     if cos_pitch < 1e-9:
         roll = 0.0
         yaw = math.atan2(-r[0, 1], r[1, 1])

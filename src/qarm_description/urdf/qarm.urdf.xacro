@@ -15,15 +15,27 @@
     <xacro:property name="L4" value="0.25" />   <!-- forearm: elbow axis to wrist axis -->
     <xacro:property name="L5" value="0.15" />   <!-- wrist axis to end_effector reference point -->
 
-    <!-- Distance from end_effector (gripper MOUNTING reference) out to
-         the fingertip that Quanser measures net reach to. This is NOT
-         a Table 2 number: it is the residual that reconciles our link
-         chain with the manual's quoted reach, and it comes out the
-         same (46.4 mm) in both the horizontal and vertical directions,
-         which is what proves it is a constant tip extension rather
-         than a link-length error. Full derivation in
-         docs/kinematics.md, "Reach reconciliation". -->
+    <!-- Distance from end_effector (where the fingers start) out to
+         the fingertips. This is NOT a Table 2 number. The manual
+         gives two reaches: Section D (0.7536 / 0.8936 m) matches our
+         chain to end_effector exactly, and Section B (0.800 / 0.940 m)
+         is larger by the same 46.4 mm in both directions, which can
+         only be a constant tip extension. We read Section B as
+         measured to the fingertips. Measure it on the hardware. Full
+         derivation in docs/kinematics.md, "Reach reconciliation". -->
     <xacro:property name="L_gripper" value="0.046447" />
+
+    <!-- Simulated gripper: two straight fingers that slide open and
+         closed. Cosmetic stand-in for the real tendon-driven
+         two-finger gripper (manual section E.ii); it does not affect
+         the arm kinematics. finger_travel is per finger, so the gap
+         between the fingers runs from 0 (closed) to 40 mm (open).
+         Full stroke takes 1 s, from Table 7's gripper speed of
+         100 percent per second. -->
+    <xacro:property name="finger_travel"       value="0.02" />
+    <xacro:property name="finger_thickness"    value="0.008" />
+    <xacro:property name="finger_width"        value="0.02" />
+    <xacro:property name="gripper_stroke_time" value="1.0" />
 
     <!-- ============================================================
          DERIVED PARAMETERS - DO NOT HAND-EDIT.
@@ -66,15 +78,16 @@
 
     <!-- ============================================================
          JOINT LIMITS
-         Source: Quanser QArm product page, Specifications table
-         ("Minimum and Maximum Joint Range", "Maximum Joint Speed").
-         https://www.quanser.com/products/qarm/
+         Source: Quanser QArm user manual, Table 7 ("Joint range",
+         "Max. speed").
 
-         CAVEAT: these ranges are stated in Quanser's own joint
-         convention. Symmetric ranges (base/shoulder/wrist) transfer
-         regardless of where zero sits, but the ASYMMETRIC elbow
-         range (-95/+75) assumes Quanser's elbow zero equals ours.
-         Confirm against hardware before trusting it for IK limits.
+         ZERO CONVENTION: every joint reads 0 at the manual's HOME
+         POSE (Figure 3 / Figure 4b): upper arm up, forearm
+         horizontal. Table 7's ranges are measured from that pose,
+         and this model uses the same zero, so the values below are
+         copied with no conversion. Still to confirm on hardware:
+         in the home configuration the arm should report ~0 on all
+         four joints.
          ============================================================ -->
     <xacro:property name="deg" value="${pi / 180.0}" />
 
@@ -87,7 +100,7 @@
     <xacro:property name="q4_min" value="${-160 * deg}" />
     <xacro:property name="q4_max" value="${ 160 * deg}" />
 
-    <xacro:property name="vel_max"    value="${90 * deg}" />  <!-- 90 deg/s -->
+    <xacro:property name="vel_max"    value="${90 * deg}" />  <!-- pi/2 rad/s, Table 7 -->
     <xacro:property name="effort_max" value="10.0" />         <!-- placeholder, not from datasheet -->
 
     <!-- Cosmetic cylinder radius for arm links (does not affect kinematics) -->
@@ -100,6 +113,7 @@
     <material name="red">      <color rgba="0.8 0.1 0.1 1.0"/></material>
     <material name="blue">     <color rgba="0.1 0.3 0.9 1.0"/></material>
     <material name="yellow">   <color rgba="0.95 0.85 0.1 1.0"/></material>
+    <material name="silver">   <color rgba="0.75 0.75 0.78 1.0"/></material>
 
     <!-- ============================================================
          BASE LINK (mounting point on worksurface, zero height)
@@ -166,19 +180,26 @@
 
          *** THE WHOLE ELBOW GEOMETRY LIVES IN THIS ONE <origin>. ***
 
-         xyz="L3 0 L2"  places the elbow axis (the shoulder->elbow
-                        vector, expressed in link_2's frame)
-         rpy="0 beta 0" pre-pitches the forearm by the structural
-                        angle, so at q3 = 0 the forearm is COLINEAR
-                        with the upper arm: the arm is dead straight
-                        at the zero pose.
+         xyz="L3 0 L2"    places the elbow axis (the shoulder->elbow
+                          vector, expressed in link_2's frame)
+         rpy="0 pi/2 0"   sets the elbow's ZERO: at q3 = 0 the
+                          forearm points along link_2's +x, square
+                          to L2. With the shoulder at 0 that is the
+                          manual's home pose, forearm horizontal
+                          (Figure 3). Positive q3 swings the forearm
+                          down toward the table.
 
-         This file previously split these two across a separate
-         'elbow_offset' fixed joint AND this origin, which applied
-         beta twice and shrank the upper arm from 353.6 mm to
-         346.5 mm. Collapsing both into a single origin makes that
-         class of bug structurally impossible: there is exactly one
-         place the elbow geometry can be written. Do not add an
+         The arm is dead straight (forearm continuing along
+         lambda_2) at q3 = beta - 90 deg = -81.87 deg. That is
+         pi/2 = beta + (90 deg - beta): the structural beta is still
+         in here exactly once, plus the 81.87 deg home-pose offset.
+
+         This file previously split the elbow geometry across a
+         separate 'elbow_offset' fixed joint AND this origin, which
+         applied beta twice and shrank the upper arm from 353.6 mm
+         to 346.5 mm. Keeping it in a single origin makes that class
+         of bug structurally impossible: there is exactly one place
+         the elbow geometry can be written. Do not add an
          intermediate fixed joint back in.
          ============================================================ -->
     <link name="link_3">
@@ -192,14 +213,16 @@
     <joint name="joint_3" type="revolute">
         <parent link="link_2"/>
         <child  link="link_3"/>
-        <origin xyz="${L3} 0 ${L2}" rpy="0 ${beta} 0"/>
+        <origin xyz="${L3} 0 ${L2}" rpy="0 ${pi / 2} 0"/>
         <axis xyz="0 1 0"/>
         <limit lower="${q3_min}" upper="${q3_max}"
                effort="${effort_max}" velocity="${vel_max}"/>
     </joint>
 
     <!-- ============================================================
-         LINK 4 - Wrist housing (rotated by joint_4, the wrist roll)
+         LINK 4 - Wrist housing and gripper body (rotated by joint_4,
+         the wrist roll). The L5 cylinder is the gripper body; the
+         palm crossbar at its end is what the fingers slide along.
          joint_4 is collinear with the forearm, so q4 changes
          orientation only, never end_effector position.
          ============================================================ -->
@@ -208,6 +231,14 @@
             <geometry><cylinder radius="${link_radius}" length="${L5}"/></geometry>
             <origin xyz="0 0 ${L5/2}" rpy="0 0 0"/>
             <material name="dark_gray"/>
+        </visual>
+        <!-- Gripper palm: wide enough to carry both fingers fully open -->
+        <visual>
+            <geometry>
+                <box size="${finger_width} ${2 * (finger_travel + finger_thickness) + 0.01} 0.02"/>
+            </geometry>
+            <origin xyz="0 0 ${L5 - 0.01}" rpy="0 0 0"/>
+            <material name="red"/>
         </visual>
     </link>
 
@@ -223,11 +254,11 @@
     <!-- ============================================================
          END EFFECTOR - the FK/IK target frame.
 
-         NOTE: this is the GRIPPER MOUNTING reference point, L5
-         (= lambda_4) past the wrist axis. It is NOT the gripper
-         fingertip. Its position must never be changed: FK, IK and the
-         saved RViz config all target this frame. If you want the
-         fingertip, use gripper_tip below.
+         NOTE: this is the gripper reference point at the palm face,
+         L5 past the wrist axis, where the fingers start. It is NOT
+         the fingertip. Its position must never be changed: FK, IK
+         and the saved RViz config all target this frame. If you want
+         the fingertip, use gripper_tip below.
          ============================================================ -->
     <link name="end_effector">
         <!-- Sphere ON the axis -->
@@ -252,15 +283,16 @@
     <!-- ============================================================
          GRIPPER TIP - extra reference frame, NOT the FK/IK target.
 
-         Exists only so the manual's quoted net reach is reproducible:
-             horizontal: lambda_2 + lambda_3 + lambda_4 + L_gripper
+         The fingertips, L_gripper past end_effector. With it, the
+         manual's Section B reach is reproducible:
+             horizontal: lambda_2 + lambda_3 + L_gripper
                          = 0.753553 + 0.046447 = 0.800 m
-             vertical:   lambda_1 + the same chain
+             vertical:   lambda_1 + lambda_2 + lambda_3 + L_gripper
                          = 0.893553 + 0.046447 = 0.940 m
-         Both match Table 2's reach exactly, which is the evidence
-         that the 46.4 mm really is gripper length past the mounting
-         face. It lies ON the tool axis (+z of link_4), so like
-         end_effector it is unaffected by the q4 roll.
+         (Section D's 0.7536 / 0.8936 m are the same reaches measured
+         to end_effector.) It lies ON the tool axis (+z of link_4), so
+         like end_effector it is unaffected by the q4 roll, and it
+         does not move when the fingers open or close.
          ============================================================ -->
     <link name="gripper_tip"/>
 
@@ -268,6 +300,53 @@
         <parent link="end_effector"/>
         <child  link="gripper_tip"/>
         <origin xyz="0 0 ${L_gripper}" rpy="0 0 0"/>
+    </joint>
+
+    <!-- ============================================================
+         FINGERS - two straight fingers running from end_effector out
+         to gripper_tip (L_gripper long), sliding apart along the
+         end_effector's y axis.
+
+         finger_left_joint is the one real joint: 0 = closed (fingers
+         touching), finger_travel = fully open. finger_right_joint
+         MIMICS it, mirrored by its -y axis, so one number drives
+         both fingers - like the real gripper, which moves both
+         fingers with a single motor. The qarm_gripper node publishes
+         this number when it receives an open/close command.
+         ============================================================ -->
+    <link name="finger_left">
+        <visual>
+            <geometry><box size="${finger_width} ${finger_thickness} ${L_gripper}"/></geometry>
+            <origin xyz="0 0 ${L_gripper / 2}" rpy="0 0 0"/>
+            <material name="silver"/>
+        </visual>
+    </link>
+
+    <joint name="finger_left_joint" type="prismatic">
+        <parent link="end_effector"/>
+        <child  link="finger_left"/>
+        <origin xyz="0 ${finger_thickness / 2} 0" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/>
+        <limit lower="0.0" upper="${finger_travel}"
+               effort="${effort_max}" velocity="${finger_travel / gripper_stroke_time}"/>
+    </joint>
+
+    <link name="finger_right">
+        <visual>
+            <geometry><box size="${finger_width} ${finger_thickness} ${L_gripper}"/></geometry>
+            <origin xyz="0 0 ${L_gripper / 2}" rpy="0 0 0"/>
+            <material name="silver"/>
+        </visual>
+    </link>
+
+    <joint name="finger_right_joint" type="prismatic">
+        <parent link="end_effector"/>
+        <child  link="finger_right"/>
+        <origin xyz="0 ${-finger_thickness / 2} 0" rpy="0 0 0"/>
+        <axis xyz="0 -1 0"/>
+        <limit lower="0.0" upper="${finger_travel}"
+               effort="${effort_max}" velocity="${finger_travel / gripper_stroke_time}"/>
+        <mimic joint="finger_left_joint" multiplier="1.0" offset="0.0"/>
     </joint>
 
 </robot>
