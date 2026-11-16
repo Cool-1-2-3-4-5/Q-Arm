@@ -100,11 +100,92 @@
     <xacro:property name="q4_min" value="${-160 * deg}" />
     <xacro:property name="q4_max" value="${ 160 * deg}" />
 
-    <xacro:property name="vel_max"    value="${90 * deg}" />  <!-- pi/2 rad/s, Table 7 -->
-    <xacro:property name="effort_max" value="10.0" />         <!-- placeholder, not from datasheet -->
+    <xacro:property name="vel_max"    value="${90 * deg}" />  <!-- pi/2 rad/s, Table 7 row 2 -->
+
+    <!-- ============================================================
+         EFFORT LIMITS - Table 7 row 5, CONTINUOUS torque column.
+
+         Table 7 quotes two torques per joint. The CONTINUOUS value
+         is used here because a URDF effort limit is a steady-state
+         ceiling, and the manual says of the instantaneous column:
+         "Do not exceed the instantaneous current/torque limits for
+         more than 0.1s." Quoting the burst figure as the limit would
+         license a controller to sit at a value the hardware
+         tolerates for a tenth of a second.
+
+                           continuous   instantaneous
+             base             2.65 Nm       10.6 Nm
+             shoulder         5.30 Nm       21.2 Nm
+             elbow            2.65 Nm       10.6 Nm
+             wrist            1.00 Nm        4.1 Nm
+
+         The shoulder is twice the base and elbow because it uses TWO
+         XM540-W270-R servos where they use one (section E.i) - an
+         internal consistency check on the table.
+
+         These replace a single effort_max = 10.0 placeholder that
+         applied to every joint. It was wrong in both directions at
+         once: 4x too permissive at the wrist, 4x too strict at the
+         shoulder.
+         ============================================================ -->
+    <xacro:property name="tau1_max" value="2.65" />  <!-- base     -->
+    <xacro:property name="tau2_max" value="5.3"  />  <!-- shoulder -->
+    <xacro:property name="tau3_max" value="2.65" />  <!-- elbow    -->
+    <xacro:property name="tau4_max" value="1.0"  />  <!-- wrist    -->
+
+    <!-- STILL A PLACEHOLDER, and deliberately so. Table 7 gives the
+         gripper 0.5 Nm continuous, but that is a TORQUE at the
+         XC430-W240-T motor. These finger joints are prismatic, so a
+         URDF effort limit here is a FORCE in newtons. Converting
+         needs the tendon radius and the two-link finger linkage
+         (section E.ii), none of which the manual dimensions. Writing
+         0.5 here would be a unit error dressed up as a datasheet
+         value. -->
+    <xacro:property name="finger_effort" value="10.0" />
 
     <!-- Cosmetic cylinder radius for arm links (does not affect kinematics) -->
     <xacro:property name="link_radius" value="0.03" />
+
+    <!-- ============================================================
+         COLLISION GEOMETRY - conventions, read before editing.
+
+         Every <collision> below is the SAME primitive as the
+         <visual> beside it, built from the same properties. Nothing
+         here is an independent number, so a dimension change can
+         never leave the collision shape behind.
+
+         WHY THE SHAPES MATCH THE VISUALS EXACTLY: the visuals are
+         already approximations of the real castings (a 30 mm
+         cylinder standing in for a bent aluminium shell). Shrinking
+         the collision shape below the drawn one would claim accuracy
+         we do not have; inflating it would reject reachable poses.
+
+         TWO LINKS DELIBERATELY HAVE NO COLLISION SHAPE:
+
+           base_link      a bare reference frame at the mounting
+                          plane. The real arm appears to bolt to the
+                          top of an enclosure (see the manual cover),
+                          which is NOT yet modelled - MEASURE IT.
+                          Until then there is nothing honest to put
+                          here, and an invented box would silently
+                          reject poses for an obstacle of the wrong
+                          size.
+
+           end_effector   its blue sphere and yellow bar are
+                          ORIENTATION MARKERS, not hardware. Giving a
+                          debug marker physical bulk would reject
+                          poses for a reason that does not exist on
+                          the real arm. The fingers below are real
+                          and do get collision shapes.
+
+         The elbow marker sphere on link_2 is likewise omitted: the
+         collision checker treats each cylinder as a CAPSULE, whose
+         rounded end cap already fills that volume. Capsules are a
+         conservative superset of the cylinders drawn here (a
+         cylinder lies entirely inside the capsule of the same radius
+         and length), so the check can only ever be pessimistic - it
+         cannot miss a contact that the drawn geometry would have.
+         ============================================================ -->
 
     <!-- ============================================================
          MATERIALS
@@ -132,6 +213,10 @@
             <origin xyz="0 0 ${L1/2}" rpy="0 0 0"/>
             <material name="red"/>
         </visual>
+        <collision>
+            <geometry><cylinder radius="${link_radius}" length="${L1}"/></geometry>
+            <origin xyz="0 0 ${L1/2}" rpy="0 0 0"/>
+        </collision>
     </link>
 
     <joint name="joint_1" type="revolute">
@@ -140,7 +225,7 @@
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <axis xyz="0 0 1"/>
         <limit lower="${q1_min}" upper="${q1_max}"
-               effort="${effort_max}" velocity="${vel_max}"/>
+               effort="${tau1_max}" velocity="${vel_max}"/>
     </joint>
 
     <!-- ============================================================
@@ -164,6 +249,13 @@
             <origin xyz="${L3} 0 ${L2}" rpy="0 0 0"/>
             <material name="yellow"/>
         </visual>
+        <!-- Follows the true shoulder->elbow line, like the visual.
+             The elbow marker sphere is not repeated here; the
+             capsule end cap covers it. -->
+        <collision>
+            <geometry><cylinder radius="${link_radius}" length="${lambda_2}"/></geometry>
+            <origin xyz="${L3/2} 0 ${L2/2}" rpy="0 ${beta} 0"/>
+        </collision>
     </link>
 
     <joint name="joint_2" type="revolute">
@@ -172,7 +264,7 @@
         <origin xyz="0 0 ${L1}" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
         <limit lower="${q2_min}" upper="${q2_max}"
-               effort="${effort_max}" velocity="${vel_max}"/>
+               effort="${tau2_max}" velocity="${vel_max}"/>
     </joint>
 
     <!-- ============================================================
@@ -208,6 +300,10 @@
             <origin xyz="0 0 ${L4/2}" rpy="0 0 0"/>
             <material name="red"/>
         </visual>
+        <collision>
+            <geometry><cylinder radius="${link_radius}" length="${L4}"/></geometry>
+            <origin xyz="0 0 ${L4/2}" rpy="0 0 0"/>
+        </collision>
     </link>
 
     <joint name="joint_3" type="revolute">
@@ -216,7 +312,7 @@
         <origin xyz="${L3} 0 ${L2}" rpy="0 ${pi / 2} 0"/>
         <axis xyz="0 1 0"/>
         <limit lower="${q3_min}" upper="${q3_max}"
-               effort="${effort_max}" velocity="${vel_max}"/>
+               effort="${tau3_max}" velocity="${vel_max}"/>
     </joint>
 
     <!-- ============================================================
@@ -240,6 +336,16 @@
             <origin xyz="0 0 ${L5 - 0.01}" rpy="0 0 0"/>
             <material name="red"/>
         </visual>
+        <collision>
+            <geometry><cylinder radius="${link_radius}" length="${L5}"/></geometry>
+            <origin xyz="0 0 ${L5/2}" rpy="0 0 0"/>
+        </collision>
+        <collision>
+            <geometry>
+                <box size="${finger_width} ${2 * (finger_travel + finger_thickness) + 0.01} 0.02"/>
+            </geometry>
+            <origin xyz="0 0 ${L5 - 0.01}" rpy="0 0 0"/>
+        </collision>
     </link>
 
     <joint name="joint_4" type="revolute">
@@ -248,7 +354,7 @@
         <origin xyz="0 0 ${L4}" rpy="0 0 0"/>
         <axis xyz="0 0 1"/>
         <limit lower="${q4_min}" upper="${q4_max}"
-               effort="${effort_max}" velocity="${vel_max}"/>
+               effort="${tau4_max}" velocity="${vel_max}"/>
     </joint>
 
     <!-- ============================================================
@@ -320,6 +426,10 @@
             <origin xyz="0 0 ${L_gripper / 2}" rpy="0 0 0"/>
             <material name="silver"/>
         </visual>
+        <collision>
+            <geometry><box size="${finger_width} ${finger_thickness} ${L_gripper}"/></geometry>
+            <origin xyz="0 0 ${L_gripper / 2}" rpy="0 0 0"/>
+        </collision>
     </link>
 
     <joint name="finger_left_joint" type="prismatic">
@@ -328,7 +438,7 @@
         <origin xyz="0 ${finger_thickness / 2} 0" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
         <limit lower="0.0" upper="${finger_travel}"
-               effort="${effort_max}" velocity="${finger_travel / gripper_stroke_time}"/>
+               effort="${finger_effort}" velocity="${finger_travel / gripper_stroke_time}"/>
     </joint>
 
     <link name="finger_right">
@@ -337,6 +447,10 @@
             <origin xyz="0 0 ${L_gripper / 2}" rpy="0 0 0"/>
             <material name="silver"/>
         </visual>
+        <collision>
+            <geometry><box size="${finger_width} ${finger_thickness} ${L_gripper}"/></geometry>
+            <origin xyz="0 0 ${L_gripper / 2}" rpy="0 0 0"/>
+        </collision>
     </link>
 
     <joint name="finger_right_joint" type="prismatic">
@@ -345,7 +459,7 @@
         <origin xyz="0 ${-finger_thickness / 2} 0" rpy="0 0 0"/>
         <axis xyz="0 -1 0"/>
         <limit lower="0.0" upper="${finger_travel}"
-               effort="${effort_max}" velocity="${finger_travel / gripper_stroke_time}"/>
+               effort="${finger_effort}" velocity="${finger_travel / gripper_stroke_time}"/>
         <mimic joint="finger_left_joint" multiplier="1.0" offset="0.0"/>
     </joint>
 
