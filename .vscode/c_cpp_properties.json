@@ -6,7 +6,7 @@
         "limitSymbolsToIncludedHeaders": false
       },
       "includePath": [
-        "/opt/ros/humble/include/**",
+        "/opt/ros/kilted/include/**",
         "/workspace/qarm_ws/src/qarm_description/include/**",
         "/usr/include/**"
       ],

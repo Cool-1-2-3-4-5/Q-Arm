@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # ============================================================================
-# QArm ROS 2 - one-shot environment setup for a fresh Ubuntu 22.04 machine
+# QArm ROS 2 - one-shot environment setup for a fresh Ubuntu 24.04 machine
+#
+# Target: Ubuntu 24.04 (noble) + ROS 2 Kilted. This is what Quanser's own
+# QArm ROS 2 packages (qarm_nodes, the hardware driver) require, so it is the
+# only combination on which our stack and the real arm can run together.
 # ============================================================================
 #
 #   bash scripts/setup_laptop.sh
@@ -22,6 +26,9 @@ step() { echo; echo "${GRN}==> $*${NC}"; }
 warn() { echo "${YEL}WARNING: $*${NC}"; }
 die()  { echo "${RED}ERROR: $*${NC}" >&2; exit 1; }
 
+ROS_DISTRO_TARGET=kilted
+UBUNTU_TARGET=noble
+
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR" || die "cannot enter $REPO_DIR"
 echo "Workspace: $REPO_DIR"
@@ -30,11 +37,11 @@ echo "Workspace: $REPO_DIR"
 step "0. Sanity checks"
 # ----------------------------------------------------------------------------
 . /etc/os-release
-[ "${UBUNTU_CODENAME:-}" = "jammy" ] \
-  || die "this project targets Ubuntu 22.04 (jammy); found '${PRETTY_NAME}'.
-       ROS 2 Humble is tied to jammy. On another release, install the
-       matching ROS 2 distro instead and expect to adjust package names."
-echo "  Ubuntu 22.04 (jammy) confirmed"
+[ "${UBUNTU_CODENAME:-}" = "$UBUNTU_TARGET" ] \
+  || die "this project targets Ubuntu 24.04 ($UBUNTU_TARGET); found '${PRETTY_NAME}'.
+       ROS 2 Kilted is built for noble, and Quanser's QArm ROS 2 packages
+       require Ubuntu 24.04 + Kilted. Install Ubuntu 24.04 and re-run."
+echo "  Ubuntu 24.04 ($UBUNTU_TARGET) confirmed"
 
 [ -d src/qarm_description ] && [ -d src/qarm_kinematics ] \
   || die "run this from the repo root; src/qarm_description was not found"
@@ -56,7 +63,7 @@ else
     -o /usr/share/keyrings/ros-archive-keyring.gpg \
     || die "could not fetch the ROS signing key. If this URL has moved,
        follow the current instructions at
-       https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html
+       https://docs.ros.org/en/kilted/Installation/Ubuntu-Install-Debs.html
        and then re-run this script."
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $UBUNTU_CODENAME main" \
     | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
@@ -65,7 +72,7 @@ fi
 # ----------------------------------------------------------------------------
 step "2. Install packages from requirements-apt.txt"
 # ----------------------------------------------------------------------------
-# This is a big download (~2 GB for ros-humble-desktop). Expect 5-20 minutes
+# This is a big download (~2 GB for ros-kilted-desktop). Expect 5-20 minutes
 # on a first run depending on the connection.
 [ -f requirements-apt.txt ] || die "requirements-apt.txt is missing"
 PKGS=$(grep -vE '^\s*#|^\s*$' requirements-apt.txt | tr '\n' ' ')
@@ -85,8 +92,9 @@ if [ ! -d /etc/ros/rosdep/sources.list.d ]; then
 fi
 rosdep update || warn "rosdep update failed (network?); continuing"
 # shellcheck disable=SC1091
-source /opt/ros/humble/setup.bash
-rosdep install --from-paths src --ignore-src -y \
+source "/opt/ros/$ROS_DISTRO_TARGET/setup.bash" \
+  || die "/opt/ros/$ROS_DISTRO_TARGET/setup.bash not found; the apt install did not complete"
+rosdep install --from-paths src --ignore-src -y --rosdistro "$ROS_DISTRO_TARGET" \
   || warn "rosdep reported unresolved dependencies; check the output"
 
 # ----------------------------------------------------------------------------
@@ -139,22 +147,27 @@ cat <<'EOF'
 
 Every new shell needs these two lines:
 
-    source /opt/ros/humble/setup.bash      # already in ~/.bashrc on the WSL box
+    source /opt/ros/kilted/setup.bash      # put this in ~/.bashrc
     source install/setup.bash              # must be run from the repo root
 
 To make the first one automatic:
 
-    echo 'source /opt/ros/humble/setup.bash' >> ~/.bashrc
+    echo 'source /opt/ros/kilted/setup.bash' >> ~/.bashrc
 
 Expected results from step 5, for comparison:
     colcon test ........ 45 tests, 0 errors, 0 failures, 0 skipped
     check_urdf ......... base_link -> link_1 -> link_2 -> link_3 -> link_4
                          -> end_effector -> {finger_left, finger_right,
                          gripper_tip}
-    home pose FK ....... end_effector reach 0.753553 m horizontal,
-                         0.893553 m vertical; gripper_tip 0.800000 /
-                         0.940000, matching the manual exactly
-    IK validation ...... all 15 checks PASS
+    home pose FK ....... (qarm_fk 0 0 0 0: upper arm up, forearm level)
+                         end_effector xyz 0.450000 0 0.490000
+                         gripper_tip  xyz 0.496447 0 0.490000
+    IK validation ...... all 15 checks PASS, including
+                         "exactly at max reach  ... reach 0.753553 m" and
+                         "vertical max reach    ... z = 0.893553 m"
+                         (end_effector max reach; add the 0.046447 m
+                         fingertip offset to get the manual's 0.800 / 0.940)
+    FK vs TF ........... all 16 rows PASS
 
 If the numbers differ, STOP. The geometry is validated against the Quanser
 manual to 1e-16 m, so a mismatch means the environment is wrong, not the arm.

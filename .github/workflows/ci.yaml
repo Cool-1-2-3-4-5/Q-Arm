@@ -6,9 +6,9 @@ on:
     branches: [ main, master ]
 jobs:
   build-and-test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     container:
-      image: osrf/ros:humble-desktop-full
+      image: osrf/ros:kilted-desktop-full
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -20,12 +20,12 @@ jobs:
         run: |
           apt-get update
           rosdep update
-          rosdep install --from-paths src --ignore-src -y --rosdistro humble
+          rosdep install --from-paths src --ignore-src -y --rosdistro kilted
 
       - name: Build workspace
         shell: bash
         run: |
-          source /opt/ros/humble/setup.bash
+          source /opt/ros/kilted/setup.bash
           colcon build --symlink-install
 
       # colcon test runs every test but does not itself fail on test
@@ -34,7 +34,7 @@ jobs:
       - name: Run tests
         shell: bash
         run: |
-          source /opt/ros/humble/setup.bash
+          source /opt/ros/kilted/setup.bash
           source install/setup.bash
           colcon test --event-handlers console_direct+
           colcon test-result --verbose

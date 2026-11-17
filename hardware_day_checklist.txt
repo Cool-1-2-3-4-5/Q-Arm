@@ -33,11 +33,13 @@ STEP 1.1 - CHECK YOU HAVE THE RIGHT UBUNTU
 
         lsb_release -ds
 
-  You should see:  Ubuntu 22.04.something LTS
+  You should see:  Ubuntu 24.04.something LTS
+  (a "No LSB modules are available" line above it is harmless)
 
-  If it says 20.04 or 24.04, stop and tell me. The whole project is built
-  on ROS 2 Humble, which only works on 22.04. Everything else in this
-  sheet assumes 22.04.
+  If it says anything else, stop and tell me. The project runs on ROS 2
+  Kilted, which Quanser's QArm ROS 2 driver requires, and Kilted is built
+  for 24.04. The machine wired to the arm must be NATIVE Ubuntu, not
+  WSL2, because the arm connects by USB.
 
         ANSWER - what it printed: ______________________
 
@@ -57,9 +59,8 @@ STEP 1.2 - DOWNLOAD THE PROJECT
 
         git log --oneline -3
 
-  The top line should mention "ros2_control hardware description". If it
-  does not, the work was not pushed from the other computer. Stop and
-  tell me.
+  The top line should mention "ROS 2 Kilted". If it does not, the work
+  was not pushed from the other computer. Stop and tell me.
 
         ANSWER - top line of the log: ______________________
 
@@ -84,33 +85,34 @@ STEP 1.4 - CHECK THE NUMBERS (this is the important bit)
 
      WHAT                             SHOULD SAY
      tests                            45 tests, 0 errors, 0 failures
-     reach to end_effector            0.753553 sideways, 0.893553 up
-     reach to gripper_tip             0.800000 sideways, 0.940000 up
-     IK validation                    all 15 checks PASS
+     home pose (qarm_fk 0 0 0 0)      end_effector 0.450000 0 0.490000
+                                      gripper_tip  0.496447 0 0.490000
+     IK validation                    all 15 checks PASS, including
+                                      max reach 0.753553 and
+                                      vertical max reach 0.893553
+     FK vs TF                         all 16 rows PASS
 
-  Those last two are the Quanser manual's own published reach numbers.
-  If your laptop reproduces them exactly, the setup is correct.
+  The home pose is NOT the max reach. Max reach is checked inside the IK
+  validation. Add the 0.046447 m fingertip offset to its two figures and
+  you get 0.800 / 0.940, the Quanser manual's own published reach.
 
         ANSWER - did all four match?  YES / NO
         If NO, which one was different and what did it say:
-        ______________________________________________
+        Yes
 
 
-STEP 1.5 - INSTALL THE CONTROL PACKAGES
+STEP 1.5 - CHECK THE CONTROL PACKAGES
 
-  These are new this week and are not part of the normal install. One
-  command:
-
-        sudo apt install -y ros-humble-ros2-control ros-humble-ros2-controllers
-
-  Then check it worked:
+  The setup script installs these. Check they are there:
 
         ros2 pkg list | grep controller_manager
 
   You should see the words controller_manager printed back at you. If you
-  get nothing, the install did not work.
+  get nothing, install them by hand:
 
-        ANSWER - did controller_manager appear?  YES / NO
+        sudo apt install -y ros-kilted-ros2-control ros-kilted-ros2-controllers
+
+        ANSWER - did controller_manager appear?  YES
 
 
 STEP 1.6 - REMEMBER THIS FOR EVERY NEW TERMINAL

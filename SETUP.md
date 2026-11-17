@@ -1,6 +1,6 @@
 # QArm ROS 2 - setting up a second machine
 
-Getting from a bare Ubuntu 22.04 box to the state the project is currently in.
+Getting from a bare Ubuntu 24.04 box to the state the project is currently in.
 
 ## Short version
 
@@ -14,19 +14,21 @@ That script configures the ROS 2 apt repository, installs everything in
 [`requirements-apt.txt`](requirements-apt.txt), runs `rosdep`, builds, and then
 **verifies the result against real numbers from the Quanser manual**. It is safe
 to re-run. Budget 15–30 minutes, most of it downloading
-`ros-humble-desktop` (~2 GB).
+`ros-kilted-desktop` (~2 GB).
 
 ## What you need
 
 | | |
 |---|---|
-| OS | Ubuntu 22.04 (jammy), native or WSL2 |
-| ROS | Humble Hawksbill |
+| OS | Ubuntu 24.04 (noble). WSL2 is fine for development; the machine wired to the arm must be native (USB) |
+| ROS | Kilted Kaiju |
 | Disk | ~4 GB |
 | Everything else | listed in `requirements-apt.txt` |
 
-ROS 2 Humble is tied to jammy. On a different Ubuntu release the script stops
-rather than installing a mismatched distro.
+Quanser's "ROS 2 For QArm" guide requires Ubuntu 24.04 + ROS 2 Kilted for its
+`qarm_nodes` hardware driver, and the Quanser SDK for Linux supports 24.04 as a
+minimum. The project was moved from Humble/22.04 to match. On a different
+Ubuntu release the script stops rather than installing a mismatched distro.
 
 ## Three things the clone will NOT give you
 
@@ -54,7 +56,7 @@ sourced.
 ## Every new terminal
 
 ```bash
-source /opt/ros/humble/setup.bash   # put this in ~/.bashrc
+source /opt/ros/kilted/setup.bash   # put this in ~/.bashrc
 source install/setup.bash           # from the repo root, every time
 ```
 
@@ -70,11 +72,14 @@ measurements; compare them against these:
 |---|---|
 | `colcon test` | 45 tests, 0 errors, 0 failures, 0 skipped |
 | `check_urdf` | `base_link → link_1 → link_2 → link_3 → link_4 → end_effector` |
-| Reach, `end_effector` | 0.753553 m horizontal, 0.893553 m vertical |
-| Reach, `gripper_tip` | 0.800000 m horizontal, 0.940000 m vertical |
-| IK validation | all 15 checks PASS |
+| Home pose, `qarm_fk 0 0 0 0` | `end_effector` 0.450 / 0 / 0.490 m, `gripper_tip` 0.496447 / 0 / 0.490 m |
+| IK validation | all 15 checks PASS, including max reach 0.753553 m and vertical max reach 0.893553 m |
+| FK vs TF | all 16 rows PASS |
 
-The last two reproduce the manual's quoted figures exactly. If your numbers
+The home pose is upper arm up, forearm level. It is not the maximum reach.
+Max reach is checked by the IK validation; adding the 0.046447 m fingertip
+offset to its `end_effector` figures gives 0.800 / 0.940 m, the manual's
+quoted reach. If your numbers
 differ, stop and fix the environment — the geometry is validated to 1e-16 m,
 so a mismatch is never the robot's fault.
 
@@ -93,8 +98,12 @@ verifying.
 
 ## Not covered by this script
 
-- **The Quanser hardware driver.** Not public, not on apt. Install it from
-  Quanser's own distribution on whichever machine is wired to the arm.
+- **The Quanser software.** Not on apt. Install the
+  [Quanser SDK for Linux](https://github.com/quanser/quanser_sdk_linux) and
+  Quanser Academic Resources from Quanser's GitHub. The QArm ROS 2 driver
+  (`qarm_nodes`, node `qarm_hardware`) then lives in
+  `~/Documents/Quanser/5_research/qarm/ROS Examples/ros2` and is built
+  separately with `colcon build --symlink-install`.
 - **USB or Ethernet access to the arm from WSL2.** WSL2 needs `usbipd-win` on
   the Windows side for USB devices, and sits behind NAT for Ethernet. If the
   arm connects over USB, strongly consider native Ubuntu rather than WSL2 on

@@ -1,6 +1,6 @@
 {
   "name": "QArm ROS 2 Dev",
-  "image": "ros:humble",
+  "image": "ros:kilted",
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {}
   },
@@ -16,5 +16,5 @@
       ]
     }
   },
-  "postCreateCommand": "apt-get update && apt-get install -y ros-humble-desktop-full python3-colcon-common-extensions"
+  "postCreateCommand": "apt-get update && apt-get install -y ros-kilted-desktop-full python3-colcon-common-extensions"
 }

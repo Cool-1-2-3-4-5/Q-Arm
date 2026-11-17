@@ -1,0 +1,5 @@
+# Store and check out every text file with LF line endings, whatever editor
+# or OS wrote it. Editing through \\wsl.localhost from Windows can otherwise
+# turn files into CRLF, and bash cannot run a CRLF shell script.
+* text=auto eol=lf
+*.sh text eol=lf

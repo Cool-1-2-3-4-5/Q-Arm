@@ -2,7 +2,9 @@
 # QArm ROS 2 control stack - COMPLETE APT PACKAGE LIST
 # ============================================================================
 #
-# Target: Ubuntu 22.04 (native or WSL2) + ROS 2 Humble
+# Target: Ubuntu 24.04 (native or WSL2) + ROS 2 Kilted
+#         (required by Quanser's QArm ROS 2 packages; native Ubuntu is needed
+#         on the machine wired to the arm, because the arm connects by USB)
 #
 # WHY THIS IS AN APT LIST AND NOT A pip requirements.txt
 # ------------------------------------------------------
@@ -30,13 +32,13 @@
 
 
 # ----------------------------------------------------------------------------
-# 1. ROS 2 HUMBLE BASE
+# 1. ROS 2 KILTED BASE
 # ----------------------------------------------------------------------------
-# ros-humble-desktop pulls in rviz2, tf2, robot_state_publisher, the message
-# packages and the demo nodes. It is heavier than ros-humble-ros-base (~2 GB
+# ros-kilted-desktop pulls in rviz2, tf2, robot_state_publisher, the message
+# packages and the demo nodes. It is heavier than ros-kilted-ros-base (~2 GB
 # against ~500 MB) and it is the right choice here, because this project is
 # verified through RViz and tf2 lookups.
-ros-humble-desktop
+ros-kilted-desktop
 
 
 # ----------------------------------------------------------------------------
@@ -66,27 +68,27 @@ git
 #                   joint_trajectory_controller, the two controllers the
 #                   arm is driven through.
 #
-# These are NOT part of ros-humble-desktop and must be named explicitly.
-ros-humble-ros2-control
-ros-humble-ros2-controllers
+# These are NOT part of ros-kilted-desktop and must be named explicitly.
+ros-kilted-ros2-control
+ros-kilted-ros2-controllers
 
 
 # ----------------------------------------------------------------------------
 # 4. ROBOT DESCRIPTION AND VISUALISATION
 # ----------------------------------------------------------------------------
 # Declared by qarm_description/package.xml. Most arrive with
-# ros-humble-desktop; listed explicitly so a ros-base install also works.
-ros-humble-xacro
-ros-humble-urdf
-ros-humble-robot-state-publisher
-ros-humble-rviz2
-ros-humble-joint-state-publisher
-ros-humble-joint-state-publisher-gui
+# ros-kilted-desktop; listed explicitly so a ros-base install also works.
+ros-kilted-xacro
+ros-kilted-urdf
+ros-kilted-robot-state-publisher
+ros-kilted-rviz2
+ros-kilted-joint-state-publisher
+ros-kilted-joint-state-publisher-gui
 
 # tf2 command-line tools: `ros2 run tf2_ros tf2_echo` is how FK is checked
 # against the live transform tree when there is no reliable X11.
-ros-humble-tf2-ros
-ros-humble-tf2-tools
+ros-kilted-tf2-ros
+ros-kilted-tf2-tools
 
 
 # ----------------------------------------------------------------------------
@@ -107,7 +109,17 @@ python3-yaml
 # worse: a green summary that checked less than you think.
 python3-pytest
 python3-flake8
-ros-humble-ament-flake8
-ros-humble-ament-pep257
-ros-humble-ament-lint-auto
-ros-humble-ament-lint-common
+ros-kilted-ament-flake8
+ros-kilted-ament-pep257
+ros-kilted-ament-lint-auto
+ros-kilted-ament-lint-common
+
+
+# ----------------------------------------------------------------------------
+# 7. QUANSER qarm_nodes DEPENDENCY
+# ----------------------------------------------------------------------------
+# Not used by our packages. Quanser's qarm_nodes (the hardware driver and the
+# rgbd camera node) need image-transport-py, per Quanser's "ROS 2 For QArm"
+# guide. Installing it here means their workspace builds on the same machine.
+# The Quanser SDK itself is not on apt; install it from Quanser's GitHub.
+ros-kilted-image-transport-py
