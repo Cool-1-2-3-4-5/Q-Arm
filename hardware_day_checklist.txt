@@ -1,0 +1,487 @@
+================================================================================
+        QARM HARDWARE DAY - STEP BY STEP FIELD SHEET
+        Everything to set up, find out, measure, test and write down
+================================================================================
+
+HOW TO USE THIS SHEET
+  Work top to bottom. Do not skip ahead, because later steps depend on
+  earlier answers. Every box like this:
+
+        ANSWER: ______________________
+
+  is something to write down. When you are done, send me the filled-in
+  answers and I will turn them into code changes.
+
+  If something does not match what this sheet says to expect, STOP and
+  write down what you actually saw. A surprise is useful information, not
+  a failure. Do not adjust anything to force a match.
+
+  Rough time: Part 1 about 30 minutes, Part 2 about 15 minutes,
+  Part 3 about 15 minutes, Part 4 about 45 minutes.
+
+
+================================================================================
+        PART 1 - SET UP YOUR LAPTOP
+        Do this first. It does not need the arm, and if it goes wrong you
+        want to know before you are standing at the bench.
+================================================================================
+
+STEP 1.1 - CHECK YOU HAVE THE RIGHT UBUNTU
+
+  Open a terminal on the laptop (if you use WSL2, open the Ubuntu
+  terminal, not PowerShell) and type:
+
+        lsb_release -ds
+
+  You should see:  Ubuntu 22.04.something LTS
+
+  If it says 20.04 or 24.04, stop and tell me. The whole project is built
+  on ROS 2 Humble, which only works on 22.04. Everything else in this
+  sheet assumes 22.04.
+
+        ANSWER - what it printed: ______________________
+
+
+STEP 1.2 - DOWNLOAD THE PROJECT
+
+  Type these two lines, one at a time:
+
+        git clone https://github.com/Cool-1-2-3-4-5/Q-Arm.git ~/workspace/qarm
+
+        cd ~/workspace/qarm
+
+  If it asks for a username and password, the password is your GitHub
+  Personal Access Token, not your real password.
+
+  Check you got the newest version:
+
+        git log --oneline -3
+
+  The top line should mention "ros2_control hardware description". If it
+  does not, the work was not pushed from the other computer. Stop and
+  tell me.
+
+        ANSWER - top line of the log: ______________________
+
+
+STEP 1.3 - INSTALL EVERYTHING
+
+  One command. It will ask for your password once, then run on its own
+  for 15 to 30 minutes. It downloads about 2 GB, so be on decent wifi.
+
+        bash scripts/setup_laptop.sh
+
+  Leave it alone while it runs. At the end it prints a list of numbers.
+  Do not close the window - the next step reads those numbers.
+
+  If it stops with a red ERROR line, copy that line and send it to me.
+
+
+STEP 1.4 - CHECK THE NUMBERS (this is the important bit)
+
+  A build finishing without errors does NOT prove the setup is right. The
+  script printed real measurements. Compare them to this table:
+
+     WHAT                             SHOULD SAY
+     tests                            45 tests, 0 errors, 0 failures
+     reach to end_effector            0.753553 sideways, 0.893553 up
+     reach to gripper_tip             0.800000 sideways, 0.940000 up
+     IK validation                    all 15 checks PASS
+
+  Those last two are the Quanser manual's own published reach numbers.
+  If your laptop reproduces them exactly, the setup is correct.
+
+        ANSWER - did all four match?  YES / NO
+        If NO, which one was different and what did it say:
+        ______________________________________________
+
+
+STEP 1.5 - INSTALL THE CONTROL PACKAGES
+
+  These are new this week and are not part of the normal install. One
+  command:
+
+        sudo apt install -y ros-humble-ros2-control ros-humble-ros2-controllers
+
+  Then check it worked:
+
+        ros2 pkg list | grep controller_manager
+
+  You should see the words controller_manager printed back at you. If you
+  get nothing, the install did not work.
+
+        ANSWER - did controller_manager appear?  YES / NO
+
+
+STEP 1.6 - REMEMBER THIS FOR EVERY NEW TERMINAL
+
+  Every time you open a fresh terminal window, you must type:
+
+        cd ~/workspace/qarm
+        source install/setup.bash
+
+  If you skip it you will get "Package 'qarm_kinematics' not found". That
+  error always means you forgot this step. It is not a broken install.
+
+
+================================================================================
+        PART 2 - READ THE MANUAL, BEFORE TOUCHING THE ARM
+        These answers decide whether the rest of the week is possible.
+        This is the single most important part of the whole sheet.
+================================================================================
+
+STEP 2.1 - CAN WE TALK TO THE ARM FROM LINUX AT ALL?
+
+  Look in the manual for a software, API, programming or "getting
+  started" section. I need to know what Quanser gives you for controlling
+  the arm from your own code.
+
+  Tick everything you can find:
+
+        [ ] a Python library or Python package
+        [ ] a C or C++ library
+        [ ] MATLAB or Simulink only (QUARC)
+        [ ] Windows only, no mention of Linux
+        [ ] Linux or Ubuntu is mentioned as supported
+        [ ] something else: ______________________
+
+  If there is a package or library name printed anywhere, copy it exactly,
+  spelling and all:
+
+        ANSWER - library or package name: ______________________
+
+  WHY THIS MATTERS: if there is a Python or C++ library that runs on
+  Linux, we can finish this week. If it is Simulink on Windows only, then
+  no amount of work gets ROS 2 on Ubuntu talking to the arm directly, and
+  we would have to change the plan. This one answer decides it, so please
+  do not guess - if you cannot find it, say so and I will work around it.
+
+
+STEP 2.2 - HOW DOES IT PHYSICALLY PLUG IN?
+
+        [ ] USB cable
+        [ ] Ethernet cable
+        [ ] WiFi
+        [ ] other: ______________________
+
+  If Ethernet or WiFi, is there an IP address printed in the manual or on
+  a sticker on the arm?
+
+        ANSWER - IP address: ______________________
+
+  WHY THIS MATTERS: if it is USB and you are on WSL2, Linux cannot see
+  USB devices without extra setup on the Windows side. Knowing now saves
+  an afternoon of confusion.
+
+
+STEP 2.3 - HOW DO YOU STOP IT IN A HURRY?
+
+  Find, physically, before powering anything on:
+
+        - where the power switch is
+        - whether there is an emergency stop button
+        - whether the manual says anything about a safe shutdown order
+
+        ANSWER - how to kill power fast: ______________________
+
+  Do not continue past this step until you know the answer. You have one
+  arm and no spare.
+
+
+STEP 2.4 - THE JOINT RANGE AND TORQUE TABLE
+
+  Find Table 7, or whatever table lists joint ranges and speeds. Confirm
+  these four ranges, which is what our model currently believes:
+
+     JOINT              OUR MODEL SAYS        MANUAL ACTUALLY SAYS
+     base (joint 1)     -170 to +170 deg      ____ to ____
+     shoulder (joint 2)  -85 to  +85 deg      ____ to ____
+     elbow (joint 3)     -95 to  +75 deg      ____ to ____
+     wrist (joint 4)    -160 to +160 deg      ____ to ____
+
+  Also confirm the maximum speed, which we have as 90 degrees per second:
+
+        ANSWER - max speed in the manual: ______________________
+
+
+================================================================================
+        PART 3 - MEASURE WITH A RULER
+        Arm switched OFF. No power needed. Nothing can go wrong here.
+================================================================================
+
+  You need a ruler or calipers that read millimetres.
+
+
+STEP 3.1 - THE MEASUREMENT THAT SETTLES AN OLD ARGUMENT
+
+  Find the flat face at the end of the gripper body - the "palm", the
+  part the two fingers are mounted on. Measure from that flat face
+  straight out to the very tip of the fingers.
+
+        ANSWER - palm face to fingertip, in mm: ______________________
+
+  WHAT IT MEANS:
+     about 46 mm   -> our reading of the manual was right. The manual
+                      quotes two different reach figures because one is
+                      measured to the palm and the other to the
+                      fingertip. Nothing to change.
+     clearly not 46 mm -> the manual has an inconsistency, and we need to
+                      talk about which of its two reach figures to trust.
+
+  This is worth doing carefully. It is the one number that has been
+  guessed since day two, and it is in the project docs as an open
+  question. Measure it twice.
+
+
+STEP 3.2 - HOW WIDE DO THE FINGERS OPEN?
+
+  Open the gripper fully by hand if it moves freely. Do not force it - if
+  it is stiff or motor-locked, skip this and come back in Part 4 once it
+  is powered.
+
+  Measure the gap between the two inner faces of the fingers when fully
+  open:
+
+        ANSWER - widest gap, in mm: ______________________
+
+  And when fully closed:
+
+        ANSWER - closed gap, in mm: ______________________
+
+  WHAT IT MEANS: our model guesses 40 mm fully open and 0 mm closed,
+  because the manual only talks in percentages. Whatever you measure is
+  the truth and I will put it in.
+
+
+STEP 3.3 - WHAT IS UNDERNEATH THE ARM?
+
+  Our model treats the arm as bolted straight onto the table, with
+  nothing below it. Look at how it is actually mounted.
+
+        Is the arm sitting on top of a box, base or enclosure?  YES / NO
+
+        If YES, measure that box:
+            height, mm: ____    width, mm: ____    depth, mm: ____
+
+  WHY THIS MATTERS: if there is a box under the arm, it is an obstacle
+  the arm could hit, and our collision model does not know it exists.
+
+
+STEP 3.4 - A QUICK SANITY CHECK ON THE ARM LENGTHS
+
+  If it is easy to do, measure roughly between joint centres and compare
+  with the numbers our model uses. Centimetre accuracy is fine - this is
+  only looking for a gross error, not precision.
+
+     SEGMENT                              MODEL     YOURS
+     table to shoulder joint              140 mm    ____
+     shoulder joint to elbow joint        354 mm    ____
+     elbow joint to wrist joint           250 mm    ____
+     wrist joint to palm face             150 mm    ____
+
+  If any of these is out by more than a centimetre or two, tell me
+  immediately and do not power the arm up.
+
+
+================================================================================
+        PART 4 - POWERED TESTS
+        Now the arm can move. Read the safety notes first, properly.
+================================================================================
+
+SAFETY, AND I MEAN IT
+  - Clear the bench. Nothing fragile within arm's reach, nothing you mind
+    breaking.
+  - Keep one hand near the power switch for every single test below.
+  - Nobody's hands inside the arm's reach while it is powered.
+  - If the manual mentions a "limp" or torque-off mode, know that the arm
+    will FALL when you enter it. Support it with your hand first.
+  - Move in tiny steps. Every command below says 10 degrees. Do not round
+    that up to 90 because it seems slow.
+  - If anything moves in a direction you did not expect, cut power first
+    and work out why afterwards.
+
+  We have not yet confirmed which way our software thinks the joints
+  turn. That is exactly what Part 4 is for. So until Part 4 is finished,
+  do not let our software drive the arm.
+
+
+STEP 4.1 - THE HOME POSE CHECK
+
+  Our whole project defines "all joints at zero" as the manual's home
+  pose: upper arm pointing UP, forearm sticking out HORIZONTALLY.
+
+  Put the arm into that shape - either by hand if it moves freely, or
+  using Quanser's own software - then read the joint angles off whatever
+  display Quanser gives you.
+
+        ANSWER - the four angles it reports:
+            base:     ______
+            shoulder: ______
+            elbow:    ______
+            wrist:    ______
+
+  WHAT IT MEANS:
+     all four near zero  -> our zero convention matches the hardware.
+                            This confirms a decision made on day three
+                            and everything downstream of it.
+     any one far off     -> write down the number. It tells us exactly
+                            how far our zero is from Quanser's, and it is
+                            a one-line fix once we know.
+
+
+STEP 4.2 - WHICH WAY IS POSITIVE? (four small tests)
+
+  For each joint, send a small POSITIVE command, about 10 degrees, using
+  Quanser's own software. Then write down which way it actually moved in
+  plain words.
+
+  SHOULDER, +10 degrees:
+        Did the arm lean toward the side the elbow is already offset
+        toward, or the opposite side?
+        ANSWER: ______________________
+
+  ELBOW, +10 degrees:
+        Did the forearm swing DOWN toward the table, or UP toward the
+        ceiling?
+        ANSWER: ______________________
+        (we expect DOWN)
+
+  BASE, +10 degrees:
+        Standing behind the arm and looking at it from behind, did it turn
+        clockwise or anticlockwise?
+        ANSWER: ______________________
+
+  WRIST, +10 degrees:
+        Same viewpoint, behind the arm looking down the forearm. Clockwise
+        or anticlockwise?
+        ANSWER: ______________________
+
+  WHY THIS MATTERS: if the wrist turns the opposite way to what our code
+  assumes, there is one constant in one file to flip. If we skipped this
+  and let the software drive, the gripper would rotate the wrong way and
+  we would waste hours blaming the maths.
+
+
+STEP 4.3 - CAN THE ELBOW REALLY FOLD THAT FAR?
+
+  Our model says the elbow can fold up tight and also straighten out past
+  flat. In plain terms:
+
+     a) Can the forearm fold right back so it is nearly alongside the
+        upper arm, like a closed pocket knife?
+        ANSWER: YES / NO
+
+     b) Can the arm straighten into one long straight line, upper arm and
+        forearm in line with each other?
+        ANSWER: YES / NO
+
+  If either is NO, note roughly how far it got before stopping. The limits
+  in our model would then be wrong, and our IK would be offering poses
+  the arm physically cannot reach.
+
+
+STEP 4.4 - THE GRIPPER
+
+     a) Send the gripper to 0 percent. Did it OPEN or CLOSE?
+        ANSWER: ______________________
+
+     b) Send it to 100 percent. OPEN or CLOSE?
+        ANSWER: ______________________
+
+     c) Now that it is powered, measure the fully open gap again:
+        ANSWER - mm: ______________________
+
+     d) Does it hold position when it grips something, or does it drift?
+        ANSWER: ______________________
+
+  WHY THIS MATTERS: we currently assume 0 means closed. If it is the
+  other way round, our gripper commands would be exactly backwards, which
+  on a real gripper means crushing something you meant to release.
+
+
+STEP 4.5 - WATCH IT MOVE AND LOOK FOR ANYTHING ODD
+
+  Drive each joint slowly through a decent range using Quanser's software
+  and just watch.
+
+        Any grinding, clicking or scraping?           YES / NO
+        Any joint that sticks or jumps?               YES / NO
+        Does any part of the arm hit any other part?  YES / NO
+        Does it hit the table or its own base?        YES / NO
+
+        Notes: ______________________________________________
+
+  If the arm can hit itself or the table, note the rough joint angles
+  where that happens. Our IK can currently hand back a pose that is
+  geometrically fine and physically stupid, and this is the information
+  that lets us block those.
+
+
+================================================================================
+        PART 5 - SEND ME THIS
+================================================================================
+
+  Send the answers to these, in this order. These are the ones that
+  actually unblock work:
+
+     1. STEP 2.1 - what Quanser gives you for Linux, and the library name.
+        MOST IMPORTANT ANSWER ON THE SHEET. Everything about whether the
+        arm moves from ROS this week hangs on it.
+
+     2. STEP 2.2 - USB or Ethernet, and the IP if there is one.
+
+     3. STEP 3.1 - palm to fingertip in mm.
+
+     4. STEP 4.1 - the four angles at the home pose.
+
+     5. STEP 4.2 - the four "which way did it turn" answers.
+
+     6. STEP 4.4 - which of 0 and 100 percent is open.
+
+     7. Anything that surprised you, in your own words.
+
+  Photos are fine and often better than words, especially for the home
+  pose and the mounting.
+
+
+================================================================================
+        WHAT HAPPENS AFTER THIS
+================================================================================
+
+  Once I have Part 5 I will:
+
+     1. Fix any constants your measurements corrected - the fingertip
+        distance, the finger opening, the wrist direction, any joint zero
+        that turned out to be offset.
+
+     2. Build the control stack on simulated hardware, so every bit of it
+        is debugged without the real arm at risk.
+
+     3. Write the driver that talks to the real arm, assuming step 2.1
+        says that is possible.
+
+     4. Swap simulated for real and drive the arm to a point you choose.
+
+  Steps 1 and 2 do not need the arm. Step 3 is the one with real risk in
+  it, and the size of that risk is decided entirely by your answer to
+  2.1.
+
+
+================================================================================
+        ONE LAST THING
+================================================================================
+
+  Do not let our software command the arm until Part 4 is filled in. Not
+  because anything is known to be wrong, but because the directions our
+  code assumes have never once been checked against hardware. A flipped
+  sign is harmless on screen and expensive on a real arm, and you have
+  exactly one arm.
+
+  Everything in Parts 1 through 3 is completely safe. Part 4 uses
+  Quanser's own software, not ours, which is the right order: prove the
+  hardware behaves as the manual says, then prove our model agrees with
+  it, and only then let our model drive.
+
+================================================================================
+                              END OF SHEET
+================================================================================
