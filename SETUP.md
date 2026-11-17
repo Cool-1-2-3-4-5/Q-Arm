@@ -96,6 +96,26 @@ ros2 run qarm_kinematics qarm_fk 0 0 0 0     # pose from joint angles in degrees
 RViz (`ros2 launch qarm_description display.launch.py`) is for looking, not for
 verifying.
 
+## Driving the arm through Quanser's driver
+
+`hardware.launch.py` connects our IK to Quanser's `qarm_hardware` node through
+`qarm_bridge`. By default it starts a fake `qarm_hardware` with the same topics,
+so the whole chain can be tested with no arm:
+
+```bash
+ros2 launch qarm_kinematics hardware.launch.py
+ros2 topic pub --once /target_point geometry_msgs/msg/PointStamped \
+    "{header: {frame_id: base_link}, point: {x: 0.3, y: 0.2, z: 0.5}}"
+```
+
+`real:=true` starts Quanser's real driver instead. Do not use it until Part 4
+of `hardware_day_checklist.txt` is complete. It also needs Quanser's workspace
+sourced first:
+
+```bash
+source ~/Documents/Quanser/5_research/qarm/"ROS Examples"/ros2/install/setup.bash
+```
+
 ## Not covered by this script
 
 - **The Quanser software.** Not on apt. Install the

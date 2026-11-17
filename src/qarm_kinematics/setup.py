@@ -10,7 +10,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/move_to.launch.py']),
+        ('share/' + package_name + '/launch',
+            ['launch/move_to.launch.py', 'launch/hardware.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -36,6 +37,11 @@ setup(
             # Drive the arm to a target point via IK (see move_to_node.py).
             #   ros2 launch qarm_kinematics move_to.launch.py
             'qarm_move_to = qarm_kinematics.move_to_node:main',
+            # Our joint commands <-> Quanser's qarm_hardware driver.
+            #   ros2 launch qarm_kinematics hardware.launch.py
+            'qarm_bridge = qarm_kinematics.hardware_bridge:main',
+            # Stand-in for Quanser's qarm_hardware, for testing without the arm.
+            'qarm_fake_hardware = qarm_kinematics.fake_qarm_hardware:main',
         ],
     },
 )

@@ -78,20 +78,53 @@ class MoveToPoint(Node):
             raise ValueError('frame must be {!r} or {!r}, got {!r}'.format(
                 EE_FRAME, TIP_FRAME, self._frame))
 
+        # SIMULATION (default): this node IS the arm. It starts at home and
+        # publishes its own position on joint_states.
+        #
+        # HARDWARE (start_from_measured:=true, command_topic:=joint_command):
+        # the arm is wherever it was left, so the node publishes NOTHING until
+        # it has read one measured state from joint_states, then starts from
+        # there. Commands go to command_topic, which hardware_bridge forwards
+        # to Quanser's driver.
+        command_topic = str(self.declare_parameter('command_topic', 'joint_states').value)
+        self._from_measured = bool(
+            self.declare_parameter('start_from_measured', False).value)
+        if self._from_measured and command_topic == 'joint_states':
+            raise ValueError('start_from_measured needs command_topic to be something '
+                             "other than 'joint_states', or the node reads its own output")
+
         self._position = [0.0] * len(JOINT_NAMES)      # home pose
+        self._ready = not self._from_measured
         self._goal = list(self._position)
         self._moving = False
         self._step = MAX_JOINT_SPEED * self._scale / rate      # radians per tick
 
-        self._states = self.create_publisher(JointState, 'joint_states', 10)
+        self._states = self.create_publisher(JointState, command_topic, 10)
         self._done = self.create_publisher(Bool, 'move_to/done', 10)
         self.create_subscription(PointStamped, 'target_point', self._on_target, 10)
+        if self._from_measured:
+            self.create_subscription(JointState, 'joint_states', self._on_measured, 10)
         self.create_timer(1.0 / rate, self._tick)
 
         self.get_logger().info(
-            'move_to ready at the home pose, targeting {} at {:.0f}% of rated speed. '
+            'move_to {}, targeting {} at {:.0f}% of rated speed, commands on {}. '
             'Publish a geometry_msgs/PointStamped on target_point.'.format(
-                self._frame, 100.0 * self._scale))
+                'waiting for a measured joint state' if self._from_measured
+                else 'ready at the home pose',
+                self._frame, 100.0 * self._scale, command_topic))
+
+    def _on_measured(self, msg):
+        """Take the starting pose from the first measured joint state."""
+        if self._ready:
+            return
+        by_name = dict(zip(msg.name, msg.position))
+        if not all(name in by_name for name in JOINT_NAMES):
+            return
+        self._position = [float(by_name[name]) for name in JOINT_NAMES]
+        self._goal = list(self._position)
+        self._ready = True
+        self.get_logger().info('starting from measured pose [{}] deg'.format(
+            ', '.join('{:.2f}'.format(math.degrees(v)) for v in self._position)))
 
     def _on_target(self, msg):
         """Solve IK for the requested point and start moving, or explain why not."""
@@ -104,6 +137,12 @@ class MoveToPoint(Node):
             return
 
         target = (msg.point.x, msg.point.y, msg.point.z)
+        if not self._ready:
+            self.get_logger().error(
+                'ignoring target ({:.4f}, {:.4f}, {:.4f}): no measured joint state yet. '
+                'Is the bridge and qarm_hardware running?'.format(*target))
+            self._done.publish(Bool(data=False))
+            return
         try:
             wrist = wrist_from_command(self._wrist, self._position[3])
             solution = solve(target, current_q=self._position, wrist=wrist,
@@ -131,6 +170,10 @@ class MoveToPoint(Node):
 
     def _tick(self):
         """Step every joint toward the goal and publish where the arm is."""
+        if not self._ready:
+            # Never command a pose we have not measured: on hardware that
+            # would drive the arm to home from wherever it actually is.
+            return
         arrived = False
         if self._moving:
             remaining = 0.0

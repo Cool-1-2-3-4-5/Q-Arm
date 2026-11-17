@@ -299,6 +299,11 @@ SAFETY, AND I MEAN IT
     will FALL when you enter it. Support it with your hand first.
   - Move in tiny steps. Every command below says 10 degrees. Do not round
     that up to 90 because it seems slow.
+  - Quanser's ROS 2 driver (ros2 run qarm_nodes qarm_hardware, and
+    Quanser's move_qarm.py launch) drives the arm to the HOME pose (upper
+    arm straight up) the instant it starts, before you send anything. If
+    the arm is resting folded, it will stand up. Clear the space above it
+    and support it before starting that node.
   - If anything moves in a direction you did not expect, cut power first
     and work out why afterwards.
 
