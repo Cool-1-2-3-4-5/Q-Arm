@@ -1,0 +1,113 @@
+# ============================================================================
+# QArm ROS 2 control stack - COMPLETE APT PACKAGE LIST
+# ============================================================================
+#
+# Target: Ubuntu 22.04 (native or WSL2) + ROS 2 Humble
+#
+# WHY THIS IS AN APT LIST AND NOT A pip requirements.txt
+# ------------------------------------------------------
+# In ROS 2 the dependency manifest is each package's package.xml, and the
+# resolver is rosdep, which maps those names onto system packages. Python
+# libraries this project uses (numpy, pytest) are installed as Debian
+# packages, not into a virtualenv, because the ROS Python modules on the
+# system path have to import them. A pip requirements.txt would install a
+# SECOND copy of numpy that ROS nodes would not necessarily pick up.
+#
+# So: this file is the explicit, human-readable record of what the project
+# needs. scripts/setup_laptop.sh installs it, and also runs rosdep, which
+# derives the same answer from the package.xml files. Two routes to the same
+# place - if they ever disagree, package.xml is the source of truth and this
+# file is stale.
+#
+# Install everything with:
+#     bash scripts/setup_laptop.sh
+# or by hand:
+#     sudo apt install $(grep -vE '^\s*#|^\s*$' requirements-apt.txt)
+#
+# NOTE: this list assumes the ROS 2 apt repository is already configured.
+# If it is not, run scripts/setup_laptop.sh, which sets it up first.
+# ============================================================================
+
+
+# ----------------------------------------------------------------------------
+# 1. ROS 2 HUMBLE BASE
+# ----------------------------------------------------------------------------
+# ros-humble-desktop pulls in rviz2, tf2, robot_state_publisher, the message
+# packages and the demo nodes. It is heavier than ros-humble-ros-base (~2 GB
+# against ~500 MB) and it is the right choice here, because this project is
+# verified through RViz and tf2 lookups.
+ros-humble-desktop
+
+
+# ----------------------------------------------------------------------------
+# 2. BUILD TOOLING
+# ----------------------------------------------------------------------------
+# colcon is the build tool; the "common extensions" metapackage is what
+# provides `colcon build`, `colcon test` and `colcon test-result`.
+python3-colcon-common-extensions
+
+# rosdep resolves package.xml dependencies to apt packages.
+python3-rosdep
+
+# Needed by ament_python packages (qarm_kinematics) at build time.
+python3-setuptools
+python3-colcon-ros
+
+git
+
+
+# ----------------------------------------------------------------------------
+# 3. ros2_control  --  THE NEW DEPENDENCY (added this week, Goal 5)
+# ----------------------------------------------------------------------------
+# ros2-control    : controller_manager, hardware_interface, and the
+#                   mock_components/GenericSystem plugin the bringup uses
+#                   as its simulated hardware.
+# ros2-controllers: joint_state_broadcaster and
+#                   joint_trajectory_controller, the two controllers the
+#                   arm is driven through.
+#
+# These are NOT part of ros-humble-desktop and must be named explicitly.
+ros-humble-ros2-control
+ros-humble-ros2-controllers
+
+
+# ----------------------------------------------------------------------------
+# 4. ROBOT DESCRIPTION AND VISUALISATION
+# ----------------------------------------------------------------------------
+# Declared by qarm_description/package.xml. Most arrive with
+# ros-humble-desktop; listed explicitly so a ros-base install also works.
+ros-humble-xacro
+ros-humble-urdf
+ros-humble-robot-state-publisher
+ros-humble-rviz2
+ros-humble-joint-state-publisher
+ros-humble-joint-state-publisher-gui
+
+# tf2 command-line tools: `ros2 run tf2_ros tf2_echo` is how FK is checked
+# against the live transform tree when there is no reliable X11.
+ros-humble-tf2-ros
+ros-humble-tf2-tools
+
+
+# ----------------------------------------------------------------------------
+# 5. PYTHON RUNTIME LIBRARIES
+# ----------------------------------------------------------------------------
+# numpy does the 4x4 matrix algebra in forward_kinematics.py.
+python3-numpy
+
+# PyYAML - the controller configuration and some validation scripts read YAML.
+python3-yaml
+
+
+# ----------------------------------------------------------------------------
+# 6. TEST AND LINT  --  REQUIRED, NOT OPTIONAL
+# ----------------------------------------------------------------------------
+# `colcon test` runs 45 tests, and 4 of them ARE the lint checks. Without
+# these packages those tests do not fail, they silently do not run, which is
+# worse: a green summary that checked less than you think.
+python3-pytest
+python3-flake8
+ros-humble-ament-flake8
+ros-humble-ament-pep257
+ros-humble-ament-lint-auto
+ros-humble-ament-lint-common

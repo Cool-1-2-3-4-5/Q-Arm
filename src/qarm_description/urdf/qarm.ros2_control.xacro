@@ -1,0 +1,202 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- ============================================================
+         ros2_control HARDWARE DESCRIPTION
+
+         WHAT THIS BLOCK IS FOR, and why it is separate from the
+         <link>/<joint> geometry in qarm.urdf.xacro.
+
+         The geometry answers "what shape is the robot". This block
+         answers a completely different question: "which joints can
+         be commanded, what can be commanded about them, and what
+         piece of software talks to the motors".
+
+         Those are independent. The geometry is identical whether
+         the arm is simulated or real; only the <plugin> below
+         changes. Keeping them in separate files means swapping
+         simulation for hardware cannot possibly disturb the
+         kinematics, which are validated against the manual to
+         1e-16 m and should never be touched by a controls change.
+
+         COMMAND vs STATE INTERFACES - the core concept:
+
+           command_interface   what WE write TO the joint.
+                               Here: position. We tell the joint
+                               what angle to go to.
+
+           state_interface     what we READ BACK from the joint.
+                               Here: position and velocity, i.e.
+                               where it actually is and how fast.
+
+         The gap between the two is the entire point of a control
+         system. On mock hardware the command is copied straight
+         into the state, so the two are always equal and the arm is
+         "perfect". On real hardware they differ, and that
+         difference is what a controller exists to close.
+
+         WHY position AND NOT effort: the manual offers four write
+         modes (Position, PWM, Current, Limp) and flags the last
+         three as OPEN LOOP, with the arm needing physical support.
+         Position is the only closed-loop mode, so it is the only
+         one that maps onto a position command_interface safely.
+
+         WHY THE FINGERS ARE NOT HERE: see the note at the bottom.
+         ============================================================ -->
+
+    <xacro:macro name="qarm_ros2_control"
+                 params="name:=QArmSystem use_mock_hardware:=true">
+
+        <ros2_control name="${name}" type="system">
+
+            <hardware>
+                <xacro:if value="${use_mock_hardware}">
+                    <!-- mock_components/GenericSystem is shipped with
+                         ros2_control. It is NOT a physics simulator: it
+                         copies each position command straight into the
+                         matching position state on the next cycle.
+
+                         That sounds useless and is in fact the most
+                         valuable debugging tool here, because it makes
+                         the hardware layer perfectly predictable. Any
+                         misbehaviour seen while running on mock is a bug
+                         in the URDF, the controller config or our own
+                         node - it cannot be the motors, the wiring or
+                         the driver, because none of those are involved.
+                         Everything above this line gets debugged with
+                         nothing at stake and no risk to the one arm we
+                         have. -->
+                    <plugin>mock_components/GenericSystem</plugin>
+
+                    <!-- Leave the velocity state at a plain derivative
+                         rather than having GenericSystem integrate a
+                         dynamics model. We have no inertial data (the
+                         manual does not give link masses), so any
+                         "dynamics" here would be invented numbers
+                         dressed up as simulation. -->
+                    <param name="calculate_dynamics">false</param>
+                </xacro:if>
+
+                <xacro:unless value="${use_mock_hardware}">
+                    <!-- THE REAL DRIVER - not written yet.
+
+                         This is the one line that changes when the
+                         hardware interface exists. It will be a C++
+                         plugin exporting the same position command and
+                         position/velocity state interfaces declared
+                         below, so every controller, launch file and node
+                         above it keeps working untouched. That
+                         substitutability is the whole reason for
+                         putting ros2_control underneath our own IK
+                         rather than commanding motors directly.
+
+                         Until it exists, launching with
+                         use_mock_hardware:=false will fail to load the
+                         plugin, loudly and immediately. That is the
+                         intended behaviour: better a clear "plugin not
+                         found" at startup than a silent fallback to
+                         simulation while someone believes they are
+                         driving the real arm. -->
+                    <plugin>qarm_hardware/QArmSystemHardware</plugin>
+                </xacro:unless>
+            </hardware>
+
+            <!-- ============================================================
+                 THE FOUR ARM JOINTS
+
+                 The command_interface min/max are deliberately the SAME
+                 properties the <joint> limits use, not retyped numbers.
+                 A joint range lives in exactly one place in this project
+                 and everything else derives from it - the same rule that
+                 prevented the Day 2 double-counted-kink bug.
+
+                 These limits are a second, independent line of defence.
+                 Our IK already filters candidate solutions against the
+                 joint ranges, but a command can also arrive from
+                 `ros2 topic pub` by hand, or from a future planner with
+                 a bug. Declaring the range here means the controller
+                 manager refuses an out-of-range command regardless of
+                 who sent it.
+                 ============================================================ -->
+
+            <joint name="joint_1">
+                <command_interface name="position">
+                    <param name="min">${q1_min}</param>
+                    <param name="max">${q1_max}</param>
+                </command_interface>
+                <!-- initial_value sets where the arm BELIEVES it is at
+                     startup. 0 is the manual's home pose (Figure 4b) for
+                     every joint, which is the convention this whole
+                     project adopted on Day 3. On mock that makes the arm
+                     appear at home. On real hardware this value is
+                     ignored - the driver reads the actual encoders, and
+                     it must, because the arm is wherever it was left. -->
+                <state_interface name="position">
+                    <param name="initial_value">0.0</param>
+                </state_interface>
+                <state_interface name="velocity"/>
+            </joint>
+
+            <joint name="joint_2">
+                <command_interface name="position">
+                    <param name="min">${q2_min}</param>
+                    <param name="max">${q2_max}</param>
+                </command_interface>
+                <state_interface name="position">
+                    <param name="initial_value">0.0</param>
+                </state_interface>
+                <state_interface name="velocity"/>
+            </joint>
+
+            <joint name="joint_3">
+                <command_interface name="position">
+                    <param name="min">${q3_min}</param>
+                    <param name="max">${q3_max}</param>
+                </command_interface>
+                <state_interface name="position">
+                    <param name="initial_value">0.0</param>
+                </state_interface>
+                <state_interface name="velocity"/>
+            </joint>
+
+            <joint name="joint_4">
+                <command_interface name="position">
+                    <param name="min">${q4_min}</param>
+                    <param name="max">${q4_max}</param>
+                </command_interface>
+                <state_interface name="position">
+                    <param name="initial_value">0.0</param>
+                </state_interface>
+                <state_interface name="velocity"/>
+            </joint>
+
+            <!-- ============================================================
+                 THE FINGERS ARE DELIBERATELY ABSENT.
+
+                 finger_left_joint and its mimicking finger_right_joint
+                 stay outside ros2_control for now, and the existing
+                 qarm_gripper node keeps publishing them on
+                 /joint_states exactly as it does today.
+
+                 WHY: robot_state_publisher merges PARTIAL joint states
+                 from several publishers, so joint_state_broadcaster can
+                 own the four arm joints while qarm_gripper owns the two
+                 finger joints, with neither one overwriting the other.
+                 That is the same two-publisher split that already works
+                 today, and it means bringing up ros2_control does not
+                 break a feature that is finished and tested.
+
+                 WHY NOT PERMANENTLY: on real hardware the gripper has
+                 to be driven through the hardware interface like
+                 everything else, so the fingers will have to move in
+                 here eventually, behind a gripper controller. Doing it
+                 now would mean rewriting a working node in the same
+                 change that introduces ros2_control, and debugging two
+                 new things at once. Tracked as an open item.
+                 ============================================================ -->
+
+        </ros2_control>
+
+    </xacro:macro>
+
+</robot>

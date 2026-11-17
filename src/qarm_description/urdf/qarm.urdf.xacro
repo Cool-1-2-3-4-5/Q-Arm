@@ -2,6 +2,25 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="qarm">
 
     <!-- ============================================================
+         ARGUMENTS
+
+         ros2_control       emit the <ros2_control> hardware block?
+                            OFF by default, so display.launch.py and
+                            every existing FK/IK validation script
+                            keep generating byte-for-byte the same
+                            URDF they always have. Only the control
+                            bringup turns it on. A controls change
+                            must not be able to disturb geometry that
+                            is validated to 1e-16 m.
+
+         use_mock_hardware  when ros2_control is on, pick the
+                            hardware plugin: mock (default) or the
+                            real Quanser driver.
+         ============================================================ -->
+    <xacro:arg name="ros2_control"      default="false" />
+    <xacro:arg name="use_mock_hardware" default="true" />
+
+    <!-- ============================================================
          QARM DIMENSIONS
          All lengths in meters, all angles in radians.
 
@@ -462,5 +481,21 @@
                effort="${finger_effort}" velocity="${finger_travel / gripper_stroke_time}"/>
         <mimic joint="finger_left_joint" multiplier="1.0" offset="0.0"/>
     </joint>
+
+    <!-- ============================================================
+         ros2_control HARDWARE BLOCK
+
+         Instantiated LAST, and only on request. Last because the
+         macro reads the joint-limit properties (q1_min and friends)
+         defined above, so they have to exist before it expands.
+         Only on request because the default URDF must stay exactly
+         what it was before ros2_control entered the project.
+         ============================================================ -->
+    <xacro:if value="$(arg ros2_control)">
+        <xacro:include filename="$(find qarm_description)/urdf/qarm.ros2_control.xacro"/>
+        <xacro:qarm_ros2_control
+            name="QArmSystem"
+            use_mock_hardware="$(arg use_mock_hardware)"/>
+    </xacro:if>
 
 </robot>
