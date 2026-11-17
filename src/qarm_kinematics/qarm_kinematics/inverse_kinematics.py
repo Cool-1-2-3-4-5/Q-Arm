@@ -124,10 +124,10 @@ from qarm_kinematics.robot_params import (
     ELBOW_STRAIGHT,
     JOINT_LIMITS,
     JOINT_NAMES,
+    L_GRIPPER,
     LAMBDA_1,
     LAMBDA_2,
     LAMBDA_3,
-    L_GRIPPER,
     TIP_FRAME,
 )
 

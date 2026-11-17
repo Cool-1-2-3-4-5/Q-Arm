@@ -8,7 +8,7 @@ tf2 listener only, no RViz and no joint_state_publisher_gui.
 
 import pytest
 
-from qarm_kinematics.validate_fk_vs_tf import TOLERANCE, format_table, run_validation
+from qarm_kinematics.validate_fk_vs_tf import format_table, run_validation, TOLERANCE
 
 
 @pytest.fixture(scope='module')

@@ -41,17 +41,6 @@ from ament_index_python.packages import get_package_prefix, get_package_share_di
 
 import numpy as np
 
-import rclpy
-from rclpy.time import Time
-
-from sensor_msgs.msg import JointState
-
-import tf2_ros
-
-import xacro
-
-import yaml
-
 from qarm_kinematics.forward_kinematics import forward_kinematics, position
 from qarm_kinematics.robot_params import (
     BASE_FRAME,
@@ -62,6 +51,17 @@ from qarm_kinematics.robot_params import (
     JOINT_NAMES,
     TIP_FRAME,
 )
+
+import rclpy
+from rclpy.time import Time
+
+from sensor_msgs.msg import JointState
+
+import tf2_ros
+
+import xacro
+
+import yaml
 
 #: Fully extended reach poses, elbow dead straight (q3 = beta - 90 deg).
 #: Horizontal: q2 = 90 deg - beta levels the effective upper arm.

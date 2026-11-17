@@ -35,16 +35,9 @@ import math
 
 from geometry_msgs.msg import PointStamped
 
-import rclpy
-from rclpy.node import Node
-
-from sensor_msgs.msg import JointState
-
-from std_msgs.msg import Bool
-
 from qarm_kinematics.inverse_kinematics import (
-    IKError,
     frame_position,
+    IKError,
     solve,
     wrist_from_command,
 )
@@ -55,6 +48,13 @@ from qarm_kinematics.robot_params import (
     MAX_JOINT_SPEED,
     TIP_FRAME,
 )
+
+import rclpy
+from rclpy.node import Node
+
+from sensor_msgs.msg import JointState
+
+from std_msgs.msg import Bool
 
 
 class MoveToPoint(Node):

@@ -24,8 +24,8 @@ from qarm_kinematics.robot_params import (
     L3,
     L4,
     L5,
-    LAMBDA_2,
     L_GRIPPER,
+    LAMBDA_2,
 )
 
 TOL = 1e-12

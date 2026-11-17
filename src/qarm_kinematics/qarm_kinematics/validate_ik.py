@@ -21,14 +21,14 @@ import sys
 import numpy as np
 
 from qarm_kinematics.inverse_kinematics import (
-    JointLimitError,
-    TargetTooCloseError,
-    TargetTooFarError,
     choose,
     frame_position,
+    JointLimitError,
     limit_violations,
     solve,
     solve_all,
+    TargetTooCloseError,
+    TargetTooFarError,
     wrist_from_command,
 )
 from qarm_kinematics.robot_params import (
