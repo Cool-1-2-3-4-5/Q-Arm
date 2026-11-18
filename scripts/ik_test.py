@@ -154,7 +154,7 @@ def main():
             sys.exit('Could not open the QArm. Is it plugged in and powered on?')
         arm.read_std()
         q = np.array(arm.measJointPosition[:4], dtype=float)
-    gripper = np.array([0.1])
+    gripper = 0.1      # plain float: numpy 2 rejects a 1-element array in pal
     try:
         if arm is not None:
             arm.read_write_std(phiCMD=q, gprCMD=gripper)          # hold where it is

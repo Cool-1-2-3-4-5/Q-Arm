@@ -44,7 +44,7 @@ def main():
             sys.exit('Could not open the QArm. Is it plugged in and powered on?')
         arm.read_std()
         q = arm.measJointPosition[:4].copy()
-        g = np.array([0.1])
+        g = 0.1        # plain float: numpy 2 rejects a 1-element array in pal
         arm.read_write_std(phiCMD=q, gprCMD=g)          # hold where it is
         print('Holding at', settle(arm), 'deg (base, shoulder, elbow, wrist)')
 
@@ -66,7 +66,7 @@ def main():
                 continue
             q = new
             if len(v) > 4:
-                g = np.array([v[4]])
+                g = v[4]
             arm.read_write_std(phiCMD=q, gprCMD=g)
             print('Measured:', settle(arm), 'deg')
 
