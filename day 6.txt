@@ -1,0 +1,261 @@
+================================================================================
+        QARM ROS 2 CONTROL STACK - DAY 6 SUMMARY
+        First session on the real arm: lab PC setup, field sheet Part 4,
+        our IK driving the QArm
+================================================================================
+
+Date:        2026-11-17 (Tuesday, lab session after the Day 5 work)
+Developer:   Mechatronics Engineering Co-op Student, University of Waterloo
+Repository:  https://github.com/Cool-1-2-3-4-5/Q-Arm   (branch main)
+Lab PC:      Windows, user mmeinst, Python 3.14.4, numpy 2.x, Quanser
+             licence. No ROS.
+Laptop:      WSL2 "Ubuntu-24.04" (~/workspace/qarm) is the real setup.
+             WSL2 "Ubuntu" (~/Q_Arm/Q-Arm) is the copy the IDE opens.
+
+Read day5_summary.txt first. This file covers what happened at the arm.
+
+
+================================================================================
+        0. ONE-PARAGRAPH SUMMARY
+================================================================================
+
+Set up the Windows lab PC, ran the field sheet's powered tests and drove the
+real QArm with our own inverse kinematics for the first time. The home pose
+matched the manual's diagram exactly and all four joint directions matched
+the model's predictions, which confirms the zero convention and the signs
+that had never been checked against hardware. ik_test.py moved the arm to
+every test target with all three Quanser cross-check gates passing, and the
+student reports the positions as spot on. No ruler measurements were written
+down yet, so accuracy is reported but not yet recorded. Two software
+problems on the lab PC were found and fixed: Quanser's library location, and
+a numpy 2 incompatibility in Quanser's own pal code.
+
+
+================================================================================
+        1. GOAL STATUS
+================================================================================
+
+  Lab PC set up (Quanser API, pal, hal, scripts) ..... DONE
+  ik_test.py dry run on the lab PC ................... DONE, gates 1-3 ok
+  Field sheet Part 4.1 home pose ..................... DONE, matches manual
+  Field sheet Part 4.2 joint directions .............. DONE, all 4 match
+  Field sheet Part 4.4 gripper ....................... reported matching,
+                                                       gap not recorded
+  Field sheet Parts 4.3 / 4.5 ........................ not recorded
+  Our IK driving the real arm ........................ DONE, reported spot on
+  Accuracy numbers (ruler, CSV) ...................... NOT RECORDED YET
+  Pick-and-place ..................................... NOT STARTED
+  Stereo vision ...................................... NOT STARTED
+
+
+================================================================================
+        2. LAB PC SETUP - WHAT IT TOOK
+================================================================================
+
+2.1  Quanser Python API. The lab installed the wheel files. The co-op
+     guide's route is install_quanser_python_api.bat in
+     C:\Program Files\Quanser\Quanser SDK\python (or ...\QUARC\python).
+
+2.2  Quanser Academic Resources were NOT in Documents\Quanser. Found at:
+         C:\ME547\Quanser_Academic_Resources-dev-windows\
+             Quanser_Academic_Resources-dev-windows\0_libraries\python
+     (Quanser's dev-windows branch, installed for the ME547 course.)
+     Our scripts look in ~\Documents\Quanser, so they could not find it.
+     Fix: copy the pal and hal folders next to the scripts (Python searches
+     the script's own folder first). The C:\ME547 copy was left untouched.
+         xcopy /e /i "<that path>\pal" pal
+         xcopy /e /i "<that path>\hal" hal
+     A first copy went into C:\Users\mmeinst\qarm_test.
+
+2.3  Getting the repo onto the lab PC. The new scripts were only in local
+     commits. The laptop has two WSL installs; the commits were in "Ubuntu"
+     but the student works in "Ubuntu-24.04", where ~/Q_Arm/Q-Arm does not
+     exist. Moved the commits into ~/workspace/qarm with a git bundle
+     (C:\Users\elilt\qarm.bundle) and the student pushed from there. The lab
+     PC then had the repo at C:\Users\mmeinst\Q-Arm, with pal and hal copied
+     into Q-Arm\scripts.
+
+2.4  Dry run on the lab PC: python ik_test.py --dry-run, target 0.45,0,0.49.
+     All three gates ok. Our IK and Quanser's agree on Windows as well as
+     Linux.
+
+
+================================================================================
+        3. THE NUMPY 2 FAILURE AND THE PAL PATCH
+================================================================================
+
+3.1  Symptom. python part4.py printed, then crashed:
+         One or more of the specified properties were not recognized by the
+         board-specific driver.
+         QArm terminated successfully.
+         ValueError: setting an array element with a sequence.
+     at pal\products\qarm.py line 159:
+         self.writeOtherBuffer[4] = np.clip(gprCMD,0.1,0.9)
+     The crash happened before the first write, so the arm received nothing.
+
+3.2  Cause. The lab PC runs Python 3.14.4, which brings numpy 2. numpy 2
+     refuses to put a 1-element array into a single buffer slot (numpy 1.25+
+     only warned). Our scripts passed the gripper as np.array([0.1]).
+     Quanser's own default, gprCMD=np.zeros(1), fails the same way, so
+     Quanser's pal is broken on numpy 2 regardless of our code. The co-op
+     guide says the libraries need Python 3.10.11, which explains why they
+     never saw it.
+
+3.3  First fix (commit 1a0a949, local): pass the gripper as a plain float in
+     part4.py and ik_test.py. Verified on numpy 2.3.5 that the array form
+     fails and the float form works and still clips (0.95 -> 0.9).
+
+3.4  It still failed on the lab PC. The hand edit had most likely left
+     "g = [0.1]" (a list fails the same way). Never fully confirmed.
+
+3.5  Final fix: patched the LOCAL copy of pal (Q-Arm\scripts\pal), lines 159
+     and 252:
+         np.clip(gprCMD,0.1,0.9)
+           -> float(np.clip(np.ravel(gprCMD)[0],0.1,0.9))
+     This accepts a float, list or array, including Quanser's defaults. The
+     original in C:\ME547 is unpatched. After this, part4.py and ik_test.py
+     both ran.
+
+3.6  The "properties were not recognized" line. pal's __init__ tries to set
+     PID gains with set_double_property; the arm's firmware did not accept
+     them. The arm then runs on its built-in default gains. Quanser's own
+     examples call the same code, so they would print the same thing. No
+     shaking, overshoot or sluggishness was reported. Cause not
+     investigated.
+
+
+================================================================================
+        4. FIELD SHEET PART 4 RESULTS
+================================================================================
+
+Run with part4.py (holds the measured pose on start, 15 deg step limit).
+
+  4.1 Home pose      At 0,0,0,0 the arm matched the manual's home diagram
+                     exactly: upper arm straight up, forearm level. Our zero
+                     convention (adopted on Day 3) is CONFIRMED on hardware.
+  4.2 Directions     All four matched the model's predictions:
+                       base +10      anticlockwise seen from above
+                       shoulder +10  upper arm tips forward
+                       elbow +10     forearm swings down toward the table
+                       wrist +10     clockwise from behind, along the forearm
+                     No sign constant needs flipping.
+  4.4 Gripper        Reported as matching (0.1 open, 0.9 closed). Open gap
+                     in mm and grip hold/drift NOT recorded.
+  4.3 / 4.5          Elbow range and noise sweep not recorded.
+
+Not yet written onto hardware_day_checklist.txt.
+
+
+================================================================================
+        5. OUR IK ON THE REAL ARM
+================================================================================
+
+Run with ik_test.py. Every move passed gates 1-3 (Quanser IK agrees within
+0.5 deg, Quanser FK of our angles within 1 mm, inside pal limits) and was
+confirmed by hand (gate 4). Suggested targets, metres:
+
+  1  0.45,0,0.49      home
+  2  0.40,0,0.45
+  3  0.40,0.10,0.45   base turns anticlockwise
+  4  0.40,-0.10,0.45
+  5  0.35,0,0.30      toward the table
+  6  0.45,0,0.49      home
+
+Result: the student reports every position as spot on. This is the first
+time our own kinematics has moved the arm.
+
+NOT YET RECORDED (needed for the write-up and the co-op comparison):
+  - ik_test_log.csv from Q-Arm\scripts on the lab PC (target, commanded and
+    measured angles, encoder-based error in mm). Copy it off the lab PC.
+  - Ruler measurements of where the arm actually went. Measure to where the
+    fingers leave the gripper body (the end_effector point), x forward from
+    the base centre, y left, z up from the base bottom or table.
+  - Repeats of targets 2 and 3 for repeatability.
+  - Photos and a short video.
+
+Until those exist, "spot on" is an observation, not a measured result.
+
+
+================================================================================
+        6. WHAT THIS PROVES, AND WHAT IT DOES NOT
+================================================================================
+
+Proven today on hardware:
+  - Joint zero matches Quanser's home pose.
+  - All four joint directions match the model.
+  - Our IK produces commands the real arm executes correctly, with
+    Quanser's IK and FK agreeing before every move.
+  - The Windows route (pal + our kinematics, no ROS) works.
+
+Not proven:
+  - Accuracy in mm (no recorded measurements yet).
+  - Repeatability.
+  - Anything in the ROS stack on hardware (bridge, move_to, real:=true).
+    The lab PC cannot run ROS.
+  - The gripper_tip frame (46 mm fingertip offset), never measured.
+
+
+================================================================================
+        7. FILES AND REPO STATE
+================================================================================
+
+  Repo (both laptop copies):
+    scripts/part4.py, scripts/ik_test.py   gripper passed as float (1a0a949)
+    day5_summary.txt                       Day 5
+    day 6.txt                              this file
+
+  Only on the lab PC (C:\Users\mmeinst\Q-Arm\scripts):
+    pal\, hal\                             copied from C:\ME547
+    pal\products\qarm.py                   patched, section 3.5
+    ik_test_log.csv                        today's moves, NOT copied off yet
+
+  Not pushed: 1a0a949 (numpy fix) and this file, in the "Ubuntu" copy.
+  To publish from the "Ubuntu" install:
+      cd ~/Q_Arm/Q-Arm && git push origin main
+  then on Ubuntu-24.04:  cd ~/workspace/qarm && git pull
+  On the lab PC the hand-edited part4.py/ik_test.py will conflict with a
+  pull; discard them (git checkout -- scripts) before pulling, or
+  re-download.
+
+  Leftovers to delete: C:\Users\elilt\qarm.bundle.
+
+  The pal patch is not in the repo because pal is Quanser's code. If a
+  fresh lab PC copy is set up, re-apply it (section 3.5), or use Python
+  3.10 with numpy 1.x.
+
+
+================================================================================
+        8. NEXT STEPS
+================================================================================
+
+Before anything else (next lab visit, 15 minutes):
+  1. Copy ik_test_log.csv off the lab PC.
+  2. Re-run 3 targets and record ruler measurements; repeat targets 2 and 3
+     twice. Photos and one short video.
+  3. Record the gripper open gap and grip hold (4.4c, 4.4d).
+  4. Fill in Parts 2, 3 and 4 on hardware_day_checklist.txt.
+
+Rest of the week (scope from Day 5):
+  Wed  pick_place.py with FIXED coordinates: hover above A, lower, close,
+       lift, move above B, lower, open, home. Same gates and safety as
+       ik_test.py, confirmation before each step. Done when A -> B works
+       three times in a row.
+  Thu  camera position of an object in base_link, to about 1-2 cm. Use the
+       arm's RealSense through pal's QArmRealSense (Quanser sample:
+       5_research/pal_utilities/vision/vision_3D_rgb_depth.py). Fit the
+       camera-to-arm transform from 4+ points touched with the arm, imaged
+       from one fixed "look" pose. Bottlenose is the fallback.
+  Fri  camera -> pick-and-place, video, accuracy table, README.
+
+Still open from Day 5:
+  - Bug 2.1 in the bridge (joint-limit tolerance). Only matters for the ROS
+    path, which the lab PC cannot run.
+  - Bridge docstring bugs 2.2-2.6.
+  - Field sheet wording fixes (Day 5 section 3.5).
+  - ros2_control vs bridge decision.
+  - Future work, not this project: collision checking, Cartesian moves,
+    MoveIt, Gazebo.
+
+Optional: ask the lab for Python 3.10.11 alongside 3.14 (py -3.10 ...), the
+version Quanser and the co-op guide support. It avoids patching pal and
+other numpy 2 surprises.
