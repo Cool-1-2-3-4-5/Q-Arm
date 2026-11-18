@@ -1,0 +1,440 @@
+================================================================================
+        QARM ROS 2 CONTROL STACK - DAY 5 SUMMARY
+        Bridge review, field sheet audit, Quanser's own code,
+        the Windows lab PC, scripts for the real arm, final scope
+================================================================================
+
+Date:        2026-11-17 (Tuesday)
+Developer:   Mechatronics Engineering Co-op Student, University of Waterloo
+Repository:  https://github.com/Cool-1-2-3-4-5/Q-Arm   (branch main)
+Environment: WSL2 "Ubuntu-24.04" distro, ROS 2 Kilted, repo at
+             ~/workspace/qarm  (the working copy used in this session sits
+             in the separate "Ubuntu" distro, 26.04 + Lyrical, at
+             ~/Q_Arm/Q-Arm)
+Lab PC:      Windows, has the Quanser licence. No Ubuntu, no ROS.
+
+Written to be read cold. It records what was done, why, what went wrong,
+what is still unproven, and what to do next.
+
+
+================================================================================
+        TABLE OF CONTENTS
+================================================================================
+
+  0. ONE-PARAGRAPH SUMMARY
+  1. GOAL STATUS
+  2. REVIEW OF COMMIT aba1774 (THE BRIDGE)
+  3. FIELD SHEET AUDIT
+  4. WHAT QUANSER ALREADY PROVIDES
+  5. ROS2_CONTROL STATUS
+  6. THE LAB PC IS WINDOWS - WHAT THAT CHANGES
+  7. THE PAST CO-OP GUIDE (SHAH AND HAASE, DEC 2025)
+  8. NEW SCRIPTS FOR THE REAL ARM
+  9. OUR CODE VS QUANSER'S
+ 10. FINAL SCOPE AND THE PLAN FOR THE WEEK
+ 11. EVERY FAILURE, MINE AND THE TOOLING'S
+ 12. VERIFICATION EVIDENCE
+ 13. FILES CHANGED
+ 14. REPO STATE AND HOW TO FINISH
+ 15. OPEN ITEMS
+
+
+================================================================================
+        0. ONE-PARAGRAPH SUMMARY
+================================================================================
+
+Reviewed the bridge commit and found that one bug can let the arm drift to
+home on start-up. Audited the field sheet against the code: Parts 1 and 2 are
+done (Part 1 re-run on the 24.04 distro, every number matches), Part 3 was
+declared matching the manual, Part 4 is still to do. Read Quanser's own
+libraries and ROS 2 examples: they already cover the driver, FK, IK and
+move-to-point, with the same link lengths as ours. The lab PC turned out to
+be Windows with no ROS, so the ROS stack cannot run next to the arm. Wrote
+two Windows scripts on top of Quanser's pal driver: part4.py for the field
+sheet tests, and ik_test.py, which drives the real arm with OUR IK and only
+moves if Quanser's IK and FK agree. Both were dry-run against Quanser's real
+libraries. Compared the project with the past co-ops' guide and fixed the
+scope for the rest of the week: real arm today, pick-and-place, then stereo
+vision. Gazebo is out of scope.
+
+
+================================================================================
+        1. GOAL STATUS
+================================================================================
+
+  Kinematics (FK, IK), own code ............... DONE, tested, matches Quanser
+  URDF / TF / RViz model, own code ............ DONE
+  Bridge to Quanser's ROS driver .............. DONE, one known bug (2.1)
+  Fake Quanser driver ......................... DONE
+  Field sheet Part 1 (laptop) ................. DONE, re-verified today
+  Field sheet Part 2 (manual / software) ...... DONE, via Quanser's code
+  Field sheet Part 3 (ruler) .................. declared matching, see 3.3
+  Field sheet Part 4 (powered tests) .......... NOT DONE
+  Real arm driven by our IK ................... script ready, not run on arm
+  Pick-and-place .............................. NOT STARTED (Wednesday)
+  Stereo vision ............................... NOT STARTED (Thu/Fri)
+  ros2_control real plugin .................... NOT WRITTEN, may be dropped
+  Collision checking .......................... NOT STARTED, future work
+  Gazebo ...................................... OUT OF SCOPE
+
+
+================================================================================
+        2. REVIEW OF COMMIT aba1774 (THE BRIDGE)
+================================================================================
+
+aba1774 added hardware_bridge.py, fake_qarm_hardware.py, hardware.launch.py
+and the start_from_measured mode in move_to_node.py. Lint and the unit tests
+pass. Findings, worst first:
+
+2.1  LIMIT BUG - CAN SEND THE ARM HOME. NOT FIXED.
+     command_to_quanser() rejects any value even slightly past a limit.
+     Reproduced: the SLEEP_POSE example in the launch file uses 1.309 rad for
+     the elbow, which is 3e-6 rad past +75 deg, so it is rejected:
+         joint_3 = 1.3090 rad (75.00 deg) is outside [-95.00, 75.00] deg
+     Chain of events: Quanser's driver starts commanding home (all zeros) ->
+     move_to reads the out-of-limit pose and tries to hold it -> the bridge
+     drops every hold command -> the driver keeps its zero command -> the arm
+     stands up to home. An encoder resting on a hard stop can read slightly
+     past a limit for the same reason. Fix: a small tolerance (about 0.5 deg)
+     for measured poses, or refuse to start loudly. Note Quanser's own
+     SLEEP_POSE (15*pi/36) is exactly on the elbow limit.
+
+2.2  hardware_bridge.py docstring says "Field sheet step 4.4 confirms that on
+     the real arm" about the gripper mapping. Step 4.4 has not been done.
+     Remove the sentence until it has.
+
+2.3  move_to/done means "finished commanding", not "arrived". On hardware the
+     arm lags behind the command. Anything sequencing moves should check
+     /joint_states. Document it at least.
+
+2.4  Launch order is not guaranteed. If qarm_hardware starts well before
+     qarm_move_to, the arm travels further toward home than the docstring's
+     "fraction of a second". The docstring warns about it.
+
+2.5  initial_pose with mixed ints and floats ("[0, -1.4835, 1.309, 0]")
+     fails parameter typing because value_type=None. Fake driver only.
+
+2.6  "Is the bridge and qarm_hardware running?" should be "Are".
+
+
+================================================================================
+        3. FIELD SHEET AUDIT
+================================================================================
+
+3.1  PART 1 - DONE. First checked the wrong WSL distro (see 11.1). On the
+     Ubuntu-24.04 distro, today:
+         lsb_release            Ubuntu 24.04.5 LTS
+         controller_manager     present
+         colcon test-result     45 tests, 0 errors, 0 failures, 0 skipped
+                                (results of the last recorded colcon test)
+         qarm_fk 0 0 0 0        end_effector 0.450000 0 0.490000
+         qarm_validate_ik       RESULT: all 15 checks PASS
+         qarm_validate_fk       RESULT: all 16 rows PASS
+
+3.2  PART 2 - DONE, from Quanser's code rather than the PDF.
+     2.1  Linux support: yes. Quanser SDK, the pal / hal Python libraries,
+          and a ROS 2 driver (package qarm_nodes, node qarm_hardware).
+     2.2  Connection: USB (pal opens the card as "qarm_usb"). No IP.
+     2.3  Emergency stop: NOT answered. Physical, must be done at the bench.
+     2.4  Joint limits in pal/products/qarm.py, LIMITS_MIN / LIMITS_MAX:
+          +/-170, +/-85, -95..+75, +/-160 deg. Identical to ours.
+          Speed: firmware profile 1.5708 rad/s (90 deg/s), 1.0472 rad/s^2.
+
+3.3  PART 3 - the student reports that everything matches the manual. No
+     measurements were written down. Taken as:
+         3.1 fingertip length  not measured. Only affects our gripper_tip
+             frame; Quanser's code has no fingertip frame at all.
+         3.2 finger gap        not measured. Measure in Step 4.4c instead.
+         3.3 box under arm     assumed NO. Correct this if wrong.
+         3.4 link lengths      match the manual (and Quanser's code).
+     Long discussion about the "palm": it means where the fingers come out
+     of the gripper body. The wrist joint is the seam where the turning part
+     meets the fixed part. Model: wrist seam -> 150 mm -> palm -> ~46 mm ->
+     fingertips (~196 mm total). The 46 mm is not printed in the manual; it
+     is the difference between the manual's two reach figures (Section B
+     0.800/0.940 vs Section D 0.7536/0.8936).
+
+3.4  PART 4 - NOT DONE. Will be run on the lab PC with part4.py (8.1).
+
+3.5  Things on the sheet that are now wrong:
+     - Step 4.4 says "we currently assume 0 means closed". The bridge and
+       Quanser's pal both say 0.1 = open, 0.9 = closed. Sending 0 will most
+       likely OPEN the gripper.
+     - Step 1.2 expects the top commit to mention "ROS 2 Kilted". It no
+       longer does.
+     - Step 2.1 still reads as an open question.
+     - "What happens after this" point 3 plans to write a driver. Quanser's
+       driver is used instead.
+     - Part 4 assumes a Linux machine at the arm. The lab PC is Windows.
+
+
+================================================================================
+        4. WHAT QUANSER ALREADY PROVIDES
+================================================================================
+
+All in ~/Documents/Quanser on the 24.04 distro (Quanser Academic Resources).
+
+  0_libraries/python/pal/products/qarm.py   QArm driver class
+      HOME_POSE [0,0,0,0], SLEEP_POSE [0,-17pi/36,15pi/36,0], limits (3.2),
+      read_write_std(phiCMD, gprCMD, baseLED), read_std(), measJointPosition,
+      gripper clipped to 0.1 (open) .. 0.9 (close), QArmRealSense camera.
+  0_libraries/python/hal/products/qarm.py   QArmUtilities
+      L_1..L_5 = 0.14, 0.35, 0.05, 0.25, 0.15. LAMBDA_3 = L_4 + L_5.
+      Identical to robot_params.py. forward_kinematics, inverse_kinematics
+      (4 solutions + best), differential_kinematics (Jacobian), input helpers.
+  5_research/qarm/ROS Examples/ros2/src     about 540 lines in total
+      qarm_hardware.py   driver node, 200 Hz, /qarm/joint_position_cmd,
+                         /qarm/gripper_cmd, /qarm/led_cmd -> /qarm/joint_states
+      move_qarm_server   action: x, y, z, wrist -> Quanser IK -> command
+      rgbd.py            RealSense publisher
+      qarm_interfaces    MoveQArm.action, QArmDiagnostics.msg
+
+Behaviours of Quanser's ROS driver that matter for safety:
+  - Commands home (all zeros) the moment it starts.
+  - Gripper command starts at 0 -> clipped to 0.1 -> gripper OPENS on start.
+  - No command checking at all.
+  - cmd_timeout_sec is declared and never used: no command timeout.
+  - Ctrl+C closes the USB connection. What the arm does then is not stated.
+  - move_qarm_server's wait loop has no timeout.
+  - Quanser's IK returns [0,0,0,0] when no solution is in limits, which is
+    also the home pose. Code that does not check for it sends the arm home.
+
+
+================================================================================
+        5. ROS2_CONTROL STATUS
+================================================================================
+
+Only the description exists (qarm.ros2_control.xacro): 4 joints, position
+command, position/velocity state, mock_components/GenericSystem. NOT written:
+the real plugin qarm_hardware/QArmSystemHardware (no C++ in the repo), any
+controller YAML, any bringup launch with controller_manager. So there are two
+driver plans and only the topic bridge is built. Decide one; if the bridge
+wins, delete the placeholder plugin line so nobody mistakes it for working
+code. It is also easy to confuse with Quanser's qarm_hardware node.
+
+
+================================================================================
+        6. THE LAB PC IS WINDOWS - WHAT THAT CHANGES
+================================================================================
+
+The arm must be driven from the lab PC because of the Quanser licence. That
+PC has Windows only. Consequences:
+  - Our ROS stack (bridge, move_to, RViz) cannot run next to the arm.
+  - Quanser's pal library runs on Windows and is all that is needed.
+  - Our kinematics package needs only Python and numpy. robot_params.py,
+    forward_kinematics.py, inverse_kinematics.py and __init__.py have no ROS
+    imports, so the folder can be copied to the lab PC as-is.
+
+Install notes (from the co-op guide and Quanser's docs):
+  - Python 3.10.11. The guide says the libraries fail on newer versions.
+  - Quanser SDK for Windows, or QUARC (which already includes it).
+  - Python API: run install_quanser_python_api.bat in
+    C:\Program Files\Quanser\Quanser SDK\python  (or ...\QUARC\python).
+    The pip/%QSDK_DIR% route failed today because of PowerShell vs cmd and a
+    literal "<version>" placeholder.
+  - Quanser Academic Resources in C:\Users\<user>\Documents\Quanser.
+  - A failed "import quanser" can also mean the arm is switched off.
+  - Check: python -c "import quanser.hardware, quanser.multimedia, numpy"
+  - Status at end of day: the lab says it is installed; the import still
+    failed. Not resolved.
+
+
+================================================================================
+        7. THE PAST CO-OP GUIDE (SHAH AND HAASE, DEC 2025)
+================================================================================
+
+"Python Control for Quanser QArm ... using Labforge Bottlenose Stereo Camera
+Depth to Execute Pick and Place Tasks", 62 pages. Repo:
+github.com/vanshs64/quanser-qarm (a copy of Quanser Academic Resources plus a
+demo).
+
+What they did: Windows, Python 3.10.11, Quanser's pal driver AND Quanser's
+QArmUtilities FK/IK. Their own code is one demo, F25Demo.py, in pal/products,
+doing pick-and-place for "Lab 1 Parts 1 and 2". Vision through the Labforge
+Bottlenose stereo camera (eBUS SDK, MATLAB stereo calibration, jumbo frames,
+on-camera YOLO, depth Z = f*B/d). They wrote no kinematics and no tests.
+
+Their guide says terminate() "sets final values for home position and 0 pwm".
+The pal version read today only closes the card. Either way, support the arm
+when a script exits.
+
+
+================================================================================
+        8. NEW SCRIPTS FOR THE REAL ARM
+================================================================================
+
+8.1  scripts/part4.py  (commit bb4058b)
+     Field sheet Part 4 on Windows through pal. Reads the measured pose and
+     HOLDS it before moving (no jump to home), refuses any step over 15 deg,
+     prints measured angles after each command. Opens the gripper on start.
+
+8.2  scripts/ik_test.py  (commit 6cd9d7f)
+     Drives the real arm with OUR IK. Type x,y,z in metres [,wrist deg]. It
+     moves only if all four gates pass:
+       1. Quanser's IK has the same solution, within 0.5 deg
+       2. Quanser's FK of our angles lands within 1 mm of the target
+       3. the angles are inside pal's LIMITS_MIN / LIMITS_MAX
+       4. the user types y
+     Holds the pose on start, steps at most 5 deg per command, logs every
+     move to ik_test_log.csv (target, commanded, measured, error) for the
+     accuracy table. --dry-run runs the gates with no arm.
+     A ready-to-copy folder is at C:\Users\elilt\qarm_test (ik_test.py plus
+     the qarm_kinematics folder) for a USB stick.
+
+8.3  Dry run of ik_test.py against Quanser's real hal/pal on the 24.04
+     distro:
+       0.45,0,0.49         all gates pass, ours vs Quanser 5.1e-14 deg
+       0.3,0.2,0.5         pass, [33.69, -14.52, 13.28, 0] deg from both
+       0.3,-0.2,0.2,30     pass, [-33.69, 4.85, 40.49, 30] deg from both
+       -0.3,0,0.3          our IK refuses: every solution breaks a limit
+       0.9,0,0.5           refuses: 0.9693 m from shoulder, max 0.7536 m
+       0,0,0.16            refuses: inside the 0.0464 m dead zone
+       0.45,0,0.49,170     refuses: wrist past 160 deg
+     NOT tested: anything that needs the arm (stepping, encoder read-back,
+     logging), and the gate 1 failure path (the two IKs never disagreed).
+
+
+================================================================================
+        9. OUR CODE VS QUANSER'S
+================================================================================
+
+  Area                          Ours                      Quanser
+  USB driver                    uses Quanser's            pal QArm, ROS driver
+  FK / IK                       own, same answers         QArmUtilities
+  Jacobian                      no                        yes
+  Move to a point               move_to_node (ROS)        move_qarm action
+  Simulation                    RViz view + fake driver   QLabs (licensed)
+  URDF / TF / RViz              yes                       no
+  Collision geometry            shapes, no checker        no
+  Command safety checks         yes                       no
+  Tests                         45                        none
+  Camera                        no                        RealSense via pal
+  Runs on the Windows lab PC    the two scripts only      yes
+  Tested on the real arm        no                        yes
+
+Where our IK is better than Quanser's, with the same answers: it raises a
+named error with the reason instead of returning [0,0,0,0]; it tells you
+when a target is too far (the co-op guide lists "math error" from millimetre
+input); it supports a fingertip target frame; it keeps the base angle for a
+target straight overhead; it has tests. Where Quanser's is ahead: it has a
+Jacobian and has been run on real arms.
+
+How the work is split from now on:
+  Ours:     IK, geometry and limits, safety (hold, small steps, refusals),
+            pick-and-place sequence, camera-to-arm conversion.
+  Quanser:  the USB driver, an independent check on our IK, reading the
+            camera.
+
+
+================================================================================
+        10. FINAL SCOPE AND THE PLAN FOR THE WEEK
+================================================================================
+
+Decision: the project ends with stereo vision feeding a pick-and-place, by
+the end of this week. Gazebo is out (no link masses in the manual,
+gz_ros2_control and the plugin unfinished, several days of tuning). QLabs is
+the faster simulator if one is ever needed.
+
+  Tue  ik_test.py on the real arm + accuracy test (3-5 taped points,
+       measured error in mm, 3 repeats each, same targets through Quanser's
+       IK)
+  Wed  pick-and-place with FIXED coordinates: hover, down, grip, up, move,
+       release. Done when A -> B works three times in a row.
+  Thu  camera gives an object's position in base_link to about 1-2 cm.
+       Use the arm's RealSense through pal (Quanser sample:
+       5_research/pal_utilities/vision/vision_3D_rgb_depth.py). The
+       Bottlenose is the fallback. Hardest part: the camera-to-arm
+       transform. Plan: touch 4+ known points with the fingertip, find them
+       in the image, fit the transform (numpy). Take images from one fixed
+       "look" pose, since the camera moves with the arm.
+  Fri  camera -> pick-and-place, video, short write-up and README.
+
+Pick-and-place comes before vision on purpose: if vision slips, Wednesday's
+result still stands on its own.
+
+RViz stays as a laptop tool: preview targets before the lab, screenshots for
+the write-up.
+
+
+================================================================================
+        11. EVERY FAILURE, MINE AND THE TOOLING'S
+================================================================================
+
+11.1 Checked the wrong distro. The IDE workspace lives in the "Ubuntu" WSL
+     distro (26.04 + Lyrical), and I reported Part 1 as "not on this
+     machine". The real install is the "Ubuntu-24.04" distro at
+     ~/workspace/qarm. Found with `wsl -l -v`. Two copies of the repo exist.
+11.2 `git log` without --no-pager hung on the pager until the 120 s timeout.
+11.3 PowerShell mangled inline Python and bash quoting several times; moved
+     to script files and single-argument commands.
+11.4 The first part4.py commit message was cut to "feat:" by quoting. The
+     commit was local, so it was amended.
+11.5 Push failed: neither distro has GitHub credentials stored. Moved the
+     commit to the 24.04 copy with a git bundle; push failed there too.
+     C:\Users\elilt\qarm.bundle was left behind (deletion was not approved).
+11.6 Files written from Windows into the Ubuntu distro were briefly not
+     visible to `wsl -e` commands (a /tmp and a .git message file).
+11.7 ik_test.py crashed on end-of-input in the first dry run. Fixed: EOF now
+     means quit.
+11.8 Suggested commands for the lab PC (pip with %QSDK_DIR%) before reading
+     the co-op guide, which documents the .bat installer that should have
+     been the first suggestion.
+
+
+================================================================================
+        12. VERIFICATION EVIDENCE
+================================================================================
+
+  colcon test-result (24.04)        45 tests, 0 errors, 0 failures
+                                    (last recorded run, not re-run today)
+  pytest qarm_kinematics (Ubuntu)   32 passed (lint + FK + IK)
+  qarm_validate_ik                  all 15 checks PASS
+  qarm_validate_fk                  all 16 rows PASS
+  command_to_quanser(SLEEP_POSE)    rejected at 75.00 deg (bug 2.1)
+  ik_test.py --dry-run              section 8.3
+  part4.py                          py_compile only, never run
+  Quanser L_1..L_5                  read from hal/products/qarm.py, identical
+
+
+================================================================================
+        13. FILES CHANGED
+================================================================================
+
+  scripts/part4.py     new   Part 4 tests on Windows through pal
+  scripts/ik_test.py   new   our IK on the real arm, gated by Quanser
+  day5_summary.txt     new   this file
+
+No changes to src/. Bugs 2.1-2.6 and the field sheet fixes in 3.5 are still
+open.
+
+
+================================================================================
+        14. REPO STATE AND HOW TO FINISH
+================================================================================
+
+  "Ubuntu" distro, ~/Q_Arm/Q-Arm       bb4058b, 6cd9d7f and the Day 5
+                                       commit, NOT pushed
+  "Ubuntu-24.04", ~/workspace/qarm     has bb4058b only, NOT pushed
+  origin/main                          aba1774
+
+To publish, from the "Ubuntu" distro:
+    cd ~/Q_Arm/Q-Arm && git push origin main
+(username = GitHub user, password = Personal Access Token). Then on 24.04:
+    cd ~/workspace/qarm && git pull
+Delete C:\Users\elilt\qarm.bundle afterwards.
+
+
+================================================================================
+        15. OPEN ITEMS
+================================================================================
+
+  1. Bug 2.1 (limit tolerance). Fix before any real:=true run.
+  2. Bugs 2.2-2.6.
+  3. Field sheet edits from 3.5, and fill in Parts 3 and 4.
+  4. Step 2.3: how to cut power fast. At the bench, before power-on.
+  5. Quanser Python API import on the lab PC.
+  6. Real-arm runs of part4.py and ik_test.py.
+  7. ros2_control vs bridge: pick one, delete the other's placeholder.
+  8. Pick-and-place, then vision (section 10).
+  9. Future work, not this project: collision checking, Cartesian
+     straight-line moves, MoveIt, Gazebo, gripper under ros2_control.
